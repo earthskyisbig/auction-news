@@ -1,0 +1,56 @@
+name: Daily Real Estate News
+
+# 매일 아침 07:00 KST(=22:00 UTC 전날)에 뉴스 수집·리포트·커밋·텔레그램 발송.
+# 키는 저장소 Secrets에서 읽는다: NAVER_CLIENT_ID, NAVER_CLIENT_SECRET,
+# TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID.
+on:
+  schedule:
+    - cron: "0 22 * * *"      # 07:00 Asia/Seoul
+  workflow_dispatch: {}        # 수동 실행(테스트) 버튼
+
+permissions:
+  contents: write              # 빌드 결과를 저장소에 커밋하기 위함
+
+concurrency:
+  group: daily-news
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+      NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TZ: Asia/Seoul
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+        # 의존성 없음(전부 stdlib) → pip install 불필요
+
+      - name: 빌드 (수집 → 적재 → 리포트)
+        run: python scripts/build.py
+
+      - name: 결과 커밋 (DB·리포트)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f data/news.db reports/ || true
+          if git diff --staged --quiet; then
+            echo "변경 없음 — 커밋 생략"
+          else
+            git commit -m "chore: 데일리 뉴스 $(date +%Y-%m-%d)"
+            git push
+          fi
+
+      - name: 텔레그램 요약 발송
+        run: python .claude/skills/news-telegram/scripts/send_digest.py
+
+      - name: 관심물건 알림 (있으면)
+        run: python .claude/skills/news-telegram/scripts/watch_alert.py

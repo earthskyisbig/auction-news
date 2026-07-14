@@ -25,3 +25,4 @@
 | 2026-07-14 | 네이버 블로그 검색 채널 추가 (naver_blog_search.py, method=blog) + ingest 접두어 버킷팅 최적화(5천건 0.7초) | naver-news-api, ingest.py, send_digest.py | 블로그글 수집 요청 + 대용량 병합 성능 |
 | 2026-07-14 | 공유 봇 토큰은 getUpdates 폴링 충돌(409) → 명령봇은 전용 토큰 필요. 발송(sendMessage)은 공유해도 무해 | news-telegram | 봇 토큰 공유 사용 확인 |
 | 2026-07-14 | 워치리스트 하네스 추가: 관심 키워드 수집(watch 카테고리)·relevance 관련도 필터·관심물건 매칭 즉시 알림 | news-watchlist 스킬, watchlist.json, ingest.py, db.py(relevance/watch_hits/alerts), watch_alert.py, 리포트/다이제스트 watch 카테고리 | 관심 키워드 수집+관련도 필터+담당물건 뉴스 알림 요청 |
+| 2026-07-14 | GitHub Actions 매일 07:00 KST 자동화(빌드→커밋→텔레그램). 키는 Secrets. scripts/build.py 단일 엔트리포인트 | .github/workflows/daily-news.yml, scripts/build.py, docs/GITHUB_ACTIONS.md | 클라우드 크론(로컬 PC 불필요) 요청 |
