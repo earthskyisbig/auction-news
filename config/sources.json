@@ -1,0 +1,14 @@
+{
+  "_comment": "소스 신뢰도 티어(스코어링용) + 크롤링 대상 매체. tier: 1(정부·공식)>2(주요 경제지)>3(부동산 전문/일반). 크롤러는 crawl_targets를, 웹리서치는 preferred_domains를 우선한다.",
+  "source_tiers": {
+    "tier1": ["molit.go.kr", "moef.go.kr", "lh.or.kr", "gov.kr", "korea.kr", "index.go.kr"],
+    "tier2": ["mk.co.kr", "hankyung.com", "sedaily.com", "edaily.co.kr", "yna.co.kr", "mt.co.kr"],
+    "tier3": ["land.naver.com", "rest.co.kr", "r114.com", "kbland.kr", "asiae.co.kr", "news1.kr"]
+  },
+  "preferred_domains": ["molit.go.kr", "mk.co.kr", "hankyung.com", "yna.co.kr", "sedaily.com", "edaily.co.kr"],
+  "crawl_targets": [
+    {"name": "국토교통부 보도자료", "url": "https://www.molit.go.kr/USR/NEWS/m_71/lst.jsp", "note": "정책 원문. 표/게시판 구조"},
+    {"name": "한경 부동산", "url": "https://www.hankyung.com/realestate", "note": "시장·분양 심층"},
+    {"name": "매경 부동산", "url": "https://www.mk.co.kr/news/realestate/", "note": "시장·정책"}
+  ]
+}

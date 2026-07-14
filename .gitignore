@@ -1,0 +1,9 @@
+.env
+data/*.db
+data/*.db-wal
+data/*.db-shm
+_workspace/
+_workspace_prev/
+reports/*.html
+__pycache__/
+*.pyc

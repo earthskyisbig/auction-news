@@ -1,0 +1,20 @@
+{
+  "_comment": "텔레그램 아침 브리핑 구독 설정. 봇 명령어(/time, /on, /off 등)로 갱신되거나 직접 수정. send_time은 24h HH:MM(Asia/Seoul).",
+  "enabled": true,
+  "send_time": "07:00",
+  "days": 1,
+  "min_score": 45,
+  "top_n": 5,
+  "relevant_only": true,
+  "categories": {
+    "watch": true,
+    "policy": true,
+    "market": true,
+    "auction": true,
+    "redevelopment": true,
+    "subscription": true,
+    "urban_plan": true,
+    "industrial": true,
+    "local": true
+  }
+}
