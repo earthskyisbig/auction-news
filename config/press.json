@@ -96,6 +96,25 @@
       "tier": 2,
       "fallback_category": "redevelopment",
       "filter": false
+    },
+    {
+      "id": "incheon",
+      "name": "인천시 보도자료",
+      "type": "incheon",
+      "url": "https://www.incheon.go.kr/IC010205",
+      "tier": 1,
+      "fallback_category": "urban_plan",
+      "filter": true,
+      "pages": 2
+    },
+    {
+      "id": "dpnews",
+      "name": "디벨로퍼뉴스",
+      "type": "rss",
+      "url": "https://www.dpnews.co.kr/rss/allArticle.xml",
+      "tier": 2,
+      "fallback_category": "redevelopment",
+      "filter": false
     }
   ]
 }

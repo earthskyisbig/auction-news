@@ -168,7 +168,29 @@ def parse_fsc(src):
     return out
 
 
-PARSERS = {"rss": parse_rss, "molit": parse_molit, "fsc": parse_fsc}
+def parse_incheon(src):
+    """인천시 보도자료. <li> 블록에 /IC010205/view 링크·subject·요약·YYYY-MM-DD가 함께 있다."""
+    body = "".join(get(u) for u in paged(src, "curPage"))
+    out = []
+    for li in re.split(r"<li>", body):
+        m = re.search(r'href="(/IC010205/view[^"]+)".*?class="subject">([^<]+)</strong>(.*?)$', li, re.S)
+        if not m:
+            continue
+        tail = TAG_RE.sub(" ", m.group(3))
+        d = re.search(r"(\d{4}-\d{2}-\d{2})", tail)
+        pub = ""
+        if d:
+            try:
+                pub = iso(datetime.strptime(d.group(1), "%Y-%m-%d").replace(tzinfo=KST))
+            except ValueError:
+                pub = ""
+        out.append({"title": clean(m.group(2)),
+                    "url": urllib.parse.urljoin(src["url"], html.unescape(m.group(1))),
+                    "desc": clean(tail)[:400], "pub": pub})
+    return out
+
+
+PARSERS = {"rss": parse_rss, "molit": parse_molit, "fsc": parse_fsc, "incheon": parse_incheon}
 
 
 def main():

@@ -67,8 +67,12 @@ python .claude/skills/news-crawl/scripts/press_feeds.py --press config/press.jso
 | 금융위원회 보도자료 | `fsc` | 행에 날짜가 없다 → 첨부파일명 앞 `YYMMDD`로 추정 |
 | 하우징워치 | `rss` | 날짜가 `dc:date`, 형식은 `YYYY-MM-DD HH:MM:SS`(RFC822 아님) |
 | 하우징헤럴드 | `rss` | 조합 공고가 대량. 제목 패턴이 서로 비슷해 URL 정규화가 정확해야 한다 |
+| 인천시 보도자료 | `incheon` | `<li>` 블록의 subject·요약·날짜. 링크는 `?repSeq=` 쿼리로 기사 구분 |
+| 디벨로퍼뉴스 | `rss` | 정비사업 전문. 표준 RSS |
 
 - `filter: true`인 소스는 `topic_filter` 용어가 제목·요약에 없으면 버린다. **정부·지자체 보도자료는 철도·보험·축제까지 전 분야**라 필수다(실측: 국토부 30건 중 17건, 서울시 50건 중 40건이 주제 밖).
 - `pages`로 목록 페이지를 넘긴다(게시판 1페이지 10건 → 하루치를 놓친다).
 - 수집 0건이면 WARN을 찍는다. 게시판 HTML은 언제든 구조가 바뀌므로 조용한 0건이 가장 위험하다.
 - 출력에 `raw.official=true`가 붙고 `ingest.py`가 relevance 필터를 면제한다(원문은 검색 노이즈가 아니다). 리포트에 `🏛공식` 배지.
+
+**HTTP로 못 잡는 곳**: 경기도 뉴스포털(gnews.gg.go.kr)·MTN 건설부동산은 목록이 JS 렌더다. MTN은 `sources.json`의 `crawl_targets`(브라우저 크롤)와 tier2 등재(네이버 검색 유입분 가중)로 커버한다. 경기도 RSS는 무료 인증키(gnews 오픈API) 신청 후 `type: rss`로 추가하면 된다.
