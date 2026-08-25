@@ -58,6 +58,8 @@ python scripts/region_news.py --sigungu 시흥시 --dong 은행동 --complex 은
   - **반드시 `--sources config/sources.json`을 넘긴다.** 없으면 `blog_channel` 제한이 풀려 전 카테고리를 긁는다(정책·시장 재탕글이 노이즈의 대부분). 수집 범위·정렬·게시일 상한은 `blog_channel`에서만 조정한다.
 - 신뢰 블로거 RSS → `_workspace/rss_raw.json` (`naver_blog_rss.py --blogs config/blogs.json`, 구독 필자 새 글 통째로, method=rss)
   - **API 키가 필요 없다** → 네이버 키가 없는 상황에서도 이 채널은 실행한다.
+- 기관 보도자료·전문지 → `_workspace/press_raw.json` (`press_feeds.py`, 국토부·서울시·금융위·하우징워치·하우징헤럴드, method=press)
+  - 키·브라우저 없이 도는 원문 채널. 브라우저 크롤(아래)이 실패해도 이건 살아 있다.
 - `news-web-researcher` → `_workspace/web_raw.json` (WebSearch/WebFetch 보완)
 - `news-crawler` → `_workspace/crawl_raw.json` (브라우저 크롤, 실패 허용)
 

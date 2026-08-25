@@ -51,3 +51,24 @@ description: 브라우저 자동화(claude-in-chrome)로 부동산 전문 매체
 ## 협업
 
 산출물을 `_workspace/crawl_raw.json`으로 남기고 curator에 완료 통보. 실패 시 "크롤 수집 실패(사유)"를 명시해 리포트에 누락이 드러나게 한다.
+
+## 키 없는 보도자료 수집 (`scripts/press_feeds.py`)
+
+브라우저 크롤은 GitHub Actions에서 못 돈다. 정기 자동화에 태울 원문 수집은 이 스크립트를 쓴다. 대상은 `config/press.json`.
+
+```bash
+python .claude/skills/news-crawl/scripts/press_feeds.py --press config/press.json --config config/keywords.json --watchlist config/watchlist.json --out _workspace/press_raw.json
+```
+
+| 소스 | type | 비고 |
+|---|---|---|
+| 국토교통부 보도자료 | `molit` | 첫 요청이 **307로 쿠키를 심는다** → `CookieJar` 없이는 무한 307. 목록 `<tr>`에 분야·등록일 |
+| 서울시 보도자료 | `rss` | 링크가 `#view/464541` **프래그먼트**로 기사를 구분. 본문은 `description`이 아니라 `<cn>` |
+| 금융위원회 보도자료 | `fsc` | 행에 날짜가 없다 → 첨부파일명 앞 `YYMMDD`로 추정 |
+| 하우징워치 | `rss` | 날짜가 `dc:date`, 형식은 `YYYY-MM-DD HH:MM:SS`(RFC822 아님) |
+| 하우징헤럴드 | `rss` | 조합 공고가 대량. 제목 패턴이 서로 비슷해 URL 정규화가 정확해야 한다 |
+
+- `filter: true`인 소스는 `topic_filter` 용어가 제목·요약에 없으면 버린다. **정부·지자체 보도자료는 철도·보험·축제까지 전 분야**라 필수다(실측: 국토부 30건 중 17건, 서울시 50건 중 40건이 주제 밖).
+- `pages`로 목록 페이지를 넘긴다(게시판 1페이지 10건 → 하루치를 놓친다).
+- 수집 0건이면 WARN을 찍는다. 게시판 HTML은 언제든 구조가 바뀌므로 조용한 0건이 가장 위험하다.
+- 출력에 `raw.official=true`가 붙고 `ingest.py`가 relevance 필터를 면제한다(원문은 검색 노이즈가 아니다). 리포트에 `🏛공식` 배지.

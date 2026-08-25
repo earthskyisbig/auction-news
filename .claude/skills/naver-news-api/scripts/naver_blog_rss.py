@@ -8,10 +8,8 @@
 
   https://rss.blog.naver.com/{id}.xml  → item: title, link, description, category, tag, pubDate
 
-카테고리 분류는 **제목+태그+RSS자체분류**만 본다(본문 1,200자를 넣으면 '아파트 분양' 같은
-조합이 아무 글에나 걸린다). keywords.json 키워드 적중 1점 + 아래 CAT_TOKENS 단일어 적중 2점으로
-합산해 최고점 카테고리를 고른다. keywords.json은 '재건축 안전진단'처럼 구(句) 위주라
-'재건축'만 있는 블로그 제목을 못 잡기 때문에 단일어 표를 따로 둔다.
+카테고리 분류는 news-curation/scripts/classify.py에 위임한다(보도자료 채널과 규칙을 공유해야
+같은 글이 수집 경로에 따라 다른 카테고리로 들어가지 않는다).
 
 사용:
   python naver_blog_rss.py --blogs config/blogs.json --config config/keywords.json \
@@ -24,20 +22,11 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
 
-RSS = "https://rss.blog.naver.com/{}.xml"
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "..", "..", "news-curation", "scripts"))
+import classify as C
 
-# 블로그 제목에 흔한 단일어 → 카테고리. keywords.json의 구(句) 매칭이 놓치는 것을 메운다.
-CAT_TOKENS = {
-    "redevelopment": ["재건축", "재개발", "정비사업", "정비구역", "정비계획", "조합", "신속통합", "모아타운",
-                      "추정분담금", "관리처분", "사업시행인가", "조합원", "입주권", "리모델링"],
-    "auction": ["경매", "공매", "낙찰", "권리분석", "말소기준", "명도", "유치권", "경락"],
-    "subscription": ["청약", "분양권", "특별공급", "청약통장", "무순위", "줍줍", "견본주택"],
-    "policy": ["대책", "규제지역", "토지거래허가", "세제", "종부세", "양도세", "취득세", "DSR", "LTV",
-               "대출규제", "임대차", "전매제한"],
-    "market": ["시황", "매매가", "전세가", "거래량", "시세", "실거래", "매물", "호가", "전세가율", "미분양"],
-    "urban_plan": ["도시계획", "지구단위", "그린벨트", "역세권", "공공주택", "도시개발", "택지지구", "개발제한구역"],
-    "industrial": ["산업단지", "신도시", "반도체", "클러스터", "국가산단"],
-}
+RSS = "https://rss.blog.naver.com/{}.xml"
 TAG_RE = re.compile(r"<[^>]+>")
 UA = {"User-Agent": "Mozilla/5.0 (compatible; auction-news/1.0)"}
 
@@ -73,39 +62,6 @@ def pubdate_iso(s):
         return ""
 
 
-def load_keyword_map(config, watchlist):
-    """(카테고리, 키워드) 목록. 긴 키워드를 먼저 봐야 '재건축'이 '재건축 초과이익환수'를 가린다."""
-    pairs = []
-    if config and os.path.isfile(config):
-        cats = json.load(open(config, encoding="utf-8"))["categories"]
-        for cat, spec in cats.items():
-            for kw in spec["keywords"]:
-                pairs.append((cat, kw))
-    if watchlist and os.path.isfile(watchlist):
-        for kw in json.load(open(watchlist, encoding="utf-8")).get("keywords", []):
-            pairs.append(("watch", kw))
-    return sorted(pairs, key=lambda p: -len(p[1]))
-
-
-def classify(hay, pairs, fallback):
-    """제목+태그+RSS분류에 대한 가중 투표. keywords.json 구 적중 1점, 단일어 적중 2점.
-    동점이면 watch(관심 지역)가 이긴다."""
-    score, matched = {}, []
-    for cat, kw in pairs:
-        toks = [t for t in kw.split() if len(t) >= 2]
-        if toks and all(t in hay for t in toks):
-            score[cat] = score.get(cat, 0) + 1
-            matched.append(kw)
-    for cat, toks in CAT_TOKENS.items():
-        for t in toks:
-            if t in hay:
-                score[cat] = score.get(cat, 0) + 2
-    if not score:
-        return fallback, []
-    best = max(score.items(), key=lambda kv: (kv[1], kv[0] == "watch"))[0]
-    return best, sorted(set(matched))[:6]
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--blogs", default="config/blogs.json")
@@ -129,7 +85,7 @@ def main():
     fallback = cfg.get("fallback_category", "local")
     skip_pats = [re.compile(p) for p in cfg.get("skip_category_patterns", [])]
     skip_titles = [re.compile(p) for p in cfg.get("skip_title_patterns", [])]
-    pairs = load_keyword_map(args.config, args.watchlist)
+    pairs = C.load_keyword_map(args.config, args.watchlist)
     cutoff = datetime.now(timezone.utc) - timedelta(days=max_age)
 
     results, seen = [], set()
@@ -167,7 +123,7 @@ def main():
             if aid in seen:
                 continue
             seen.add(aid)
-            cat, matched = classify(" ".join([title, tags, rss_cat]), pairs, fallback)
+            cat, matched = C.classify(" ".join([title, tags, rss_cat]), pairs, fallback)
             results.append({
                 "id": aid, "title": title, "description": desc, "url": url, "naver_url": "",
                 "source": blog_name, "pub_date": pub, "category": cat,

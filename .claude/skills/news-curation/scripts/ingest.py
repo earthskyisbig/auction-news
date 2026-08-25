@@ -80,12 +80,32 @@ def source_tier(domain, tier_map):
     return 3
 
 
+# 기사를 식별하지 않는 추적·페이징 파라미터. 이것만 떼고 나머지 쿼리는 남긴다.
+DROP_PARAMS = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+               "fromrss", "trackingcode", "ref", "referer", "curpage", "lcmspage",
+               "srchctgry", "srchkey", "srchtext", "srchbegindt", "srchenddt", "page"}
+
+
 def canon_url(url):
+    """기사 식별용 정규화 URL.
+
+    쿼리도 프래그먼트도 통째로 버리면 안 된다. `article.html?no=27196`처럼 **쿼리가 기사
+    번호인** CMS(하우징워치·국토부 dtl.jsp)와 `news_report.do#view/464541`처럼 **프래그먼트가
+    기사 번호인** SPA(서울시)가 있어서, 버리면 그 매체 기사 전체가 한 URL로 붕괴하고 서로
+    무관한 기사 수십 건이 같은 스토리로 병합된다.
+    """
     if not url:
         return ""
     try:
         p = urllib.parse.urlparse(url)
-        return (p.netloc.replace("www.", "") + p.path).rstrip("/").lower()
+        keep = [(k, v) for k, v in urllib.parse.parse_qsl(p.query)
+                if k.lower() not in DROP_PARAMS]
+        out = (p.netloc.replace("www.", "") + p.path).rstrip("/").lower()
+        if keep:
+            out += "?" + urllib.parse.urlencode(sorted(keep))
+        if p.fragment:
+            out += "#" + p.fragment.lower()
+        return out
     except Exception:
         return url.lower()
 

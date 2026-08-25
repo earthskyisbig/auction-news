@@ -20,6 +20,7 @@ RUN_ID = datetime.now(KST).strftime("ci-%Y-%m-%dT%H%M")
 NAVER = ".claude/skills/naver-news-api/scripts"
 CUR = ".claude/skills/news-curation/scripts"
 REP = ".claude/skills/news-report/scripts"
+PRESS = ".claude/skills/news-crawl/scripts"
 
 
 def load_env():
@@ -64,6 +65,13 @@ def main():
          "--out", "_workspace/rss_raw.json"])
     if os.path.isfile(os.path.join(ROOT, "_workspace/rss_raw.json")):
         inputs.append("_workspace/rss_raw.json")
+
+    # 기관 보도자료·정비사업 전문지도 키 없이 동작 (국토부·서울시·금융위·하우징워치·하우징헤럴드)
+    run([f"{PRESS}/press_feeds.py", "--press", "config/press.json",
+         "--config", "config/keywords.json", "--watchlist", "config/watchlist.json",
+         "--out", "_workspace/press_raw.json"])
+    if os.path.isfile(os.path.join(ROOT, "_workspace/press_raw.json")):
+        inputs.append("_workspace/press_raw.json")
 
     if inputs:
         run([f"{CUR}/ingest.py", "--inputs", *inputs, "--sources", "config/sources.json",

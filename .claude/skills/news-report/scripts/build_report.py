@@ -102,11 +102,20 @@ def latest_pubdate(articles):
         return None
 
 
-def is_trusted(a):
+def _raw(a):
     try:
-        return bool(json.loads(a["raw"] or "{}").get("trusted"))
+        return json.loads(a["raw"] or "{}")
     except Exception:
-        return False
+        return {}
+
+
+def is_trusted(a):
+    return bool(_raw(a).get("trusted"))
+
+
+def is_official(a):
+    """기관 보도자료 원문 — 언론 보도가 아니라 1차 출처다."""
+    return bool(_raw(a).get("official"))
 
 
 def card(a, is_ad=False):
@@ -116,7 +125,9 @@ def card(a, is_ad=False):
     if a["corroboration"] and a["corroboration"] >= 2:
         badge = f'<span class="badge corr">교차출처 {a["corroboration"]}</span>'
     tier_b = f'<span class="badge tier{a["source_tier"]}">T{a["source_tier"]}</span>'
-    if is_trusted(a):
+    if is_official(a):
+        badge += '<span class="badge official" title="기관 보도자료 원문(1차 출처)">🏛공식</span>'
+    elif is_trusted(a):
         # 직접 등록한 구독 필자다. 상호에 전화번호가 들어가도 광고로 깎지 않는다.
         badge += '<span class="badge trust" title="config/blogs.json에 등록한 신뢰 블로거">⭐신뢰</span>'
     elif is_ad:
@@ -270,6 +281,7 @@ a.title:hover{{color:var(--c)}}
 .corr{{background:#fef3c7;color:#b45309}}
 .ad{{background:#fee2e2;color:#b91c1c}}
 .trust{{background:#dcfce7;color:#15803d}}
+.official{{background:#e0e7ff;color:#3730a3}}
 .blog-note{{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:11px 14px;
   font-size:12.5px;color:#78350f;margin-bottom:14px;line-height:1.6}}
 .tier1{{background:#dcfce7;color:#166534}}.tier2{{background:#dbeafe;color:#1e40af}}.tier3{{background:#f1f5f9;color:#64748b}}
