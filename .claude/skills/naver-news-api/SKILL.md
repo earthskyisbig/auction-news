@@ -72,3 +72,26 @@ python naver_blog_search.py --config config/keywords.json --watchlist config/wat
 - `--sources`를 빼면 제한이 풀려 **전 카테고리를 긁는다.** 정기 파이프라인에서는 반드시 넘긴다.
 - 일회성으로 전부 긁어야 하면 `--all-categories`.
 - 카테고리를 늘리기 전에 그 카테고리 블로그가 뉴스에 없는 정보를 주는지 먼저 확인할 것 — `policy`/`market`은 확인 결과 전량 재탕이었다.
+
+## 신뢰 블로거 RSS 채널 (`naver_blog_rss.py`)
+
+검색 채널과 **방향이 반대**다. 검색은 키워드에 걸린 글만 가져오므로 좋은 필자의 글도 표현이 어긋나면 영영 안 들어온다. 이 채널은 `config/blogs.json`에 등록한 블로거의 RSS를 통째로 받는다. **네이버 API 키가 필요 없다** — 키가 없어도 이 채널은 돈다.
+
+```bash
+python naver_blog_rss.py --blogs config/blogs.json --config config/keywords.json   --watchlist config/watchlist.json --out _workspace/rss_raw.json
+```
+
+| 키 | 뜻 |
+|---|---|
+| `feeds[].id` | `blog.naver.com/{id}`의 id |
+| `tier` | 스코어 티어(기본 2 = 주요 경제지급). 3으로 낮추면 브리핑 본문에 안 뜨고 현장 목소리 섹션에만 남는다 |
+| `per_feed_limit` / `max_age_days` | 피드당 글 수(30) / 게시일 상한(30일) |
+| `skip_category_patterns` | 블로그 자체 카테고리 기준 제외(강의·세미나·공지 등 홍보성) |
+| `skip_title_patterns` | 제목 기준 제외(`[모집]`, `[공지]` 등) |
+| `fallback_category` | 키워드 무적중 시 카테고리(기본 market) |
+
+**분류**: 제목+태그+RSS자체분류만 본다. 본문 1,200자를 넣으면 `아파트 분양` 같은 구가 아무 글에나 걸린다. 점수는 `keywords.json` 구 적중 1점 + `CAT_TOKENS` 단일어 적중 2점. keywords.json이 `재건축 안전진단`처럼 구 위주라 `재건축`만 있는 블로그 제목을 못 잡기 때문에 단일어 표를 스크립트에 따로 둔다.
+
+**신뢰 처리**: 출력에 `source_tier_hint`와 `raw.trusted`가 붙는다. `ingest.py`가 이걸 보고 ① 블로거명이라 도메인 티어표에 안 걸리는 문제를 우회하고 ② relevance 필터를 면제한다(구독 콘텐츠에는 걸러낼 검색 노이즈가 없다) ③ 같은 글이 검색으로 먼저 들어와 있었으면 병합 시 신뢰·티어를 승격시킨다.
+
+**0건 피드는 반드시 WARN으로 찍는다.** 휴면 블로그인지 필터가 과한지 구분이 안 되면 조용히 사라진다.

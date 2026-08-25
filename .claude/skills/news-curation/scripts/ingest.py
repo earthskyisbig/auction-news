@@ -42,7 +42,12 @@ def load_watch(path):
 
 def compute_relevance(rec):
     """검색어(keywords_matched)의 핵심 토큰이 제목/본문에 실제 존재하면 1, 아니면 0.
-    네이버 검색의 fuzzy 매칭 노이즈를 걸러낸다."""
+    네이버 검색의 fuzzy 매칭 노이즈를 걸러낸다.
+
+    단, 신뢰 블로거 RSS(raw.trusted)는 검색 결과가 아니라 구독 콘텐츠다 —
+    걸러낼 검색 노이즈 자체가 없으므로 면제한다."""
+    if (rec.get("raw") or {}).get("trusted"):
+        return 1
     hay = (rec.get("title", "") + " " + rec.get("description", "")).lower()
     for kw in rec.get("keywords_matched", []):
         toks = [t for t in re.split(r"\s+", kw.lower()) if len(t) >= 2]
@@ -128,6 +133,12 @@ def merge_group(items, tier_map):
         for k in (it.get("keywords_matched") or []):
             kws.add(k)
     dom = base.get("source", "")
+    # 신뢰 블로거 RSS는 블로거명이 source라 도메인 티어표에 안 걸린다 → 수집기가 준 힌트를 쓴다
+    hints = [int(i["source_tier_hint"]) for i in items if i.get("source_tier_hint")]
+    tier = min([source_tier(dom, tier_map)] + hints)
+    raw = dict(base.get("raw") or {})
+    if any((i.get("raw") or {}).get("trusted") for i in items):
+        raw["trusted"] = True      # 교차병합돼도 신뢰 표시는 남긴다
     return {
         "id": base.get("id") or D and __import__("hashlib").sha1((base["title"] + base.get("url", "")).encode()).hexdigest()[:16],
         "title": base["title"],
@@ -135,13 +146,13 @@ def merge_group(items, tier_map):
         "url": base.get("url", ""),
         "naver_url": base.get("naver_url", ""),
         "source": dom,
-        "source_tier": source_tier(dom, tier_map),
+        "source_tier": tier,
         "pub_date": base.get("pub_date", ""),
         "category": base.get("category", "uncategorized"),
         "keywords_matched": sorted(kws),
         "methods": sorted(methods) or ["api"],
         "corroboration": len({canon_url(i.get("url", "")) or norm_title(i["title"]) for i in items}),
-        "raw": base.get("raw", {}),
+        "raw": raw,
     }
 
 
@@ -211,18 +222,32 @@ def main():
         hits = match_watch(rec, properties)
         if hits:
             watch_c += 1
-        row = con.execute("SELECT id,corroboration,methods,keywords_matched,first_seen FROM articles WHERE id=?",
-                          (rec["id"],)).fetchone()
+        row = con.execute("SELECT id,corroboration,methods,keywords_matched,first_seen,source_tier,raw "
+                          "FROM articles WHERE id=?", (rec["id"],)).fetchone()
         if row:  # 이미 있던 스토리 → 교차/키워드 갱신
             methods = sorted(set(json.loads(row["methods"] or "[]")) | set(rec["methods"]))
             kws = sorted(set(json.loads(row["keywords_matched"] or "[]")) | set(rec["keywords_matched"]))
             corrob = max(row["corroboration"], rec["corroboration"])
             rec["methods"], rec["keywords_matched"], rec["corroboration"] = methods, kws, corrob
+            # 같은 글을 검색으로 먼저 잡았다가 RSS로 다시 만나는 경우 → 신뢰 표시·티어를 승격시킨다.
+            # 갱신하지 않으면 같은 필자의 글이 수집 순서에 따라 신뢰/비신뢰로 갈린다.
+            try:
+                old_raw = json.loads(row["raw"] or "{}")
+            except Exception:
+                old_raw = {}
+            merged_raw = dict(old_raw)
+            merged_raw.update(rec["raw"] or {})
+            if old_raw.get("trusted") or (rec["raw"] or {}).get("trusted"):
+                merged_raw["trusted"] = True
+            rec["source_tier"] = min(row["source_tier"] or 3, rec["source_tier"])
             rec["score"] = score(rec)
+            if merged_raw.get("trusted"):
+                rel = 1
             con.execute("""UPDATE articles SET methods=?,keywords_matched=?,corroboration=?,score=?,
-                           relevance=?,watch_hits=?,last_seen=? WHERE id=?""",
+                           relevance=?,watch_hits=?,last_seen=?,source_tier=?,raw=? WHERE id=?""",
                         (json.dumps(methods, ensure_ascii=False), json.dumps(kws, ensure_ascii=False),
-                         corrob, rec["score"], rel, json.dumps(hits, ensure_ascii=False), now, rec["id"]))
+                         corrob, rec["score"], rel, json.dumps(hits, ensure_ascii=False), now,
+                         rec["source_tier"], json.dumps(merged_raw, ensure_ascii=False), rec["id"]))
             merged_c += 1
         else:
             con.execute("""INSERT INTO articles

@@ -10,7 +10,9 @@
 
 **카테고리(8):** policy 정책·규제·세제 · market 시장·시세 · auction 경매·공매 · redevelopment 재개발·재건축 · subscription 분양·청약 · urban_plan 도시계획·공공주택 · industrial 산업단지·신도시 · local 지역단지·호재(경매 호재용).
 
-**관심사·소스 설정:** `config/keywords.json`(카테고리별 키워드), `config/sources.json`(신뢰도 티어·크롤 대상·`blog_channel` 블로그 전용 규칙), `config/telegram.json`(발송시각·구독), `config/watchlist.json`(관심 키워드·담당 물건). 코드 수정 없이 이 파일들만 고쳐 관심사를 바꾼다.
+**관심사·소스 설정:** `config/keywords.json`(카테고리별 키워드), `config/sources.json`(신뢰도 티어·크롤 대상·`blog_channel` 블로그 전용 규칙), `config/telegram.json`(발송시각·구독), `config/watchlist.json`(관심 키워드·담당 물건), `config/blogs.json`(신뢰 블로거 RSS 구독). 코드 수정 없이 이 파일들만 고쳐 관심사를 바꾼다.
+
+**신뢰 블로거 RSS:** `config/blogs.json`에 등록한 블로거의 새 글을 `rss.blog.naver.com/{id}.xml`로 통째로 수집한다(API 키 불필요). 검색 채널과 반대 방향 — 검색어에 안 걸려도 들어온다. `tier`(기본 2)로 스코어 가중치, `relevance`는 1 고정(구독 콘텐츠라 검색 노이즈 필터가 무의미), 리포트에 `⭐신뢰` 배지. 등록만 하면 되고 코드는 안 건드린다.
 
 **워치리스트:** `news-watchlist` 스킬 — 관심 지역·정비구역·정책을 `category=watch`로 추가 수집(⭐관심 섹션), 검색어가 본문에 실제 있는지 `relevance` 필터, 담당 물건(properties.region) 매칭 시 `watch_alert.py`로 즉시 텔레그램 알림(다이제스트와 별개, 중복 없음). properties.region은 구체 고유명사 권장.
 
@@ -30,3 +32,4 @@
 | 2026-08-08 | 워치리스트에 시흥 은계지구·수도권 서남부 광역철도(제2경인선·신구로선·신천신림선)·광명시흥 3기 신도시·거모지구 키워드 9종 추가 | config/watchlist.json | 입지분석 하네스에서 `은계` 0건 확인. 미등록 지역은 DB 신선도와 무관하게 영구 0건이므로 키워드 등록이 유일한 해법 |
 | 2026-08-08 | ⚠️ **정본 DB는 원격(origin/main)이다.** `data/news.db`는 로컬 `.gitignore`(data/*.db) 대상이라 로컬에서 추적되지 않지만, GitHub Actions는 `-f`로 강제 커밋한다 → 로컬 파일과 원격 커밋본이 조용히 갈라진다. 2026-08-08 확인 시 원격 26,418건 vs 로컬 8,301건(7월하순 14,894 vs 885). 로컬에서 build.py를 돌리기 전에 반드시 원격본을 내려받을 것 | .gitignore, data/news.db, scripts/build.py | 로컬 DB가 7/14 이후 정체된 것으로 오진했으나, 실제로는 GH Actions가 매일 정상 실행 중이었고 로컬만 26커밋 뒤처져 있었음 |
 | 2026-08-25 | **블로그 채널 정밀화** — 수집을 `local`·`redevelopment`+`watch`로 축소(정책·시장 등 6카테고리 제외), `sort=date`·게시일 400일 상한. 리포트에 **🏘 현장 목소리** 섹션 신설(블로그 단독분·임계 25점·watch 우선·`⚠광고` 배지·상한 80건). 설정은 `sources.json`의 `blog_channel` 한 곳 | config/sources.json, naver_blog_search.py, build_report.py, build.py, realestate-news-harness SKILL.md | 블로그 3,775건 중 **브리핑(45점)에 오른 유효 건수 0**이었음. tier3 고정(16점)이라 구조적으로 임계를 못 넘김. 무작위 샘플 12/12가 '부동산 대책 요약' 재탕글이었고, 값어치 있는 것은 워치리스트 현장글(광명뉴타운 주간 실거래·구역 동향)뿐. 검증: 수집 2,000여건→579건(watch 288·local 157·redevelopment 134), 2026년 글 99%, 광고 판정 56건 |
+| 2026-08-25 | **신뢰 블로거 RSS 구독 채널 신설** — `naver_blog_rss.py` + `config/blogs.json`(16개 피드). 검색이 아니라 구독이라 검색어 불일치로 놓치던 글이 들어온다. tier2·relevance1 고정, `⭐신뢰` 배지(전화번호 상호여도 광고로 깎지 않음), ingest가 병합 시에도 신뢰·티어를 승격. 분류는 제목+태그+RSS분류만 보고 CAT_TOKENS 단일어 2점·keywords.json 구 1점 가중투표 | naver_blog_rss.py(신규), config/blogs.json(신규), ingest.py, build_report.py, build.py | 사용자가 직접 선별한 블로거 목록 제공. 검증: 16피드 중 14개 응답 206건 수집(휴면 1·세미나글만 1은 WARN으로 명시), 41건이 45점 이상으로 브리핑 본문 진입, 분류 오류 5건 재검 후 전건 정정 |

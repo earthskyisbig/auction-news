@@ -76,11 +76,11 @@ def fetch(con, since_iso, min_score, relevant_only=False):
 
 
 def fetch_blog(con, since_iso, min_score, exclude_ids):
-    """블로그 단독 수집분(뉴스와 병합되지 않은 것)만. 뉴스 섹션과의 중복은 제외."""
+    """블로그(검색)·RSS(신뢰 블로거) 단독 수집분. 뉴스와 병합된 것·뉴스 섹션에 이미 실린 것은 제외."""
     q = ("SELECT * FROM articles WHERE (pub_date>=? OR pub_date='') AND score>=? AND relevance=1 "
-         "AND methods LIKE '%\"blog\"%' AND methods NOT LIKE '%\"api\"%' "
-         # 워치리스트 현장글이 가장 값어치 있는데 점수는 낮다 → 상한(--blog-top)에 잘리지 않도록 먼저 세운다
-         "ORDER BY (category='watch') DESC, score DESC, pub_date DESC")
+         "AND (methods LIKE '%\"blog\"%' OR methods LIKE '%\"rss\"%') AND methods NOT LIKE '%\"api\"%' "
+         # 신뢰 블로거(RSS 구독분)와 워치리스트 현장글은 점수가 낮아도 상한(--blog-top)에 잘리면 안 된다
+         "ORDER BY (raw LIKE '%\"trusted\": true%') DESC, (category='watch') DESC, score DESC, pub_date DESC")
     rows = con.execute(q, (since_iso, min_score)).fetchall()
     return [dict(r) for r in rows if r["id"] not in exclude_ids]
 
@@ -102,6 +102,13 @@ def latest_pubdate(articles):
         return None
 
 
+def is_trusted(a):
+    try:
+        return bool(json.loads(a["raw"] or "{}").get("trusted"))
+    except Exception:
+        return False
+
+
 def card(a, is_ad=False):
     methods = json.loads(a["methods"] or "[]")
     kws = json.loads(a["keywords_matched"] or "[]")
@@ -109,7 +116,10 @@ def card(a, is_ad=False):
     if a["corroboration"] and a["corroboration"] >= 2:
         badge = f'<span class="badge corr">교차출처 {a["corroboration"]}</span>'
     tier_b = f'<span class="badge tier{a["source_tier"]}">T{a["source_tier"]}</span>'
-    if is_ad:
+    if is_trusted(a):
+        # 직접 등록한 구독 필자다. 상호에 전화번호가 들어가도 광고로 깎지 않는다.
+        badge += '<span class="badge trust" title="config/blogs.json에 등록한 신뢰 블로거">⭐신뢰</span>'
+    elif is_ad:
         badge += '<span class="badge ad" title="중개업소·분양대행 블로그 — 포지션이 걸린 글">⚠광고</span>'
     method_b = "".join(f'<span class="m">{esc(m)}</span>' for m in methods)
     kw_b = "".join(f'<span class="kw">{esc(k)}</span>' for k in kws[:4])
@@ -176,7 +186,8 @@ def build(articles, meta, blogs=None, is_ad=lambda s: False):
       </section>"""
 
     if blogs:
-        ad_n = sum(1 for b in blogs if is_ad(b["source"]))
+        tr_n = sum(1 for b in blogs if is_trusted(b))
+        ad_n = sum(1 for b in blogs if not is_trusted(b) and is_ad(b["source"]))
         trunc_note = (f'<br><b>표시 {len(blogs)}건 / 조건 충족 {meta["blog_total"]}건</b> — 스코어 상위만 실었다.'
                       if meta["blog_total"] > len(blogs) else "")
         blog_cards = "".join(card(b, is_ad(b["source"])) for b in blogs)
@@ -184,8 +195,9 @@ def build(articles, meta, blogs=None, is_ad=lambda s: False):
       <section id="blog" class="cat blog" style="--c:{BLOG_COLOR}">
         <h2><span class="dot"></span>🏘 현장 목소리 <span class="cnt">{len(blogs)}건</span>
           <a class="top-link" href="#top">↑ 맨 위로</a></h2>
-        <p class="blog-note">네이버 블로그 단독 수집분. 언론이 다루지 않는 <b>매물·호가·구역 동향</b>이 주 가치이나
-          검증되지 않은 개인 견해이고, <b>{ad_n}건</b>은 중개업소·분양대행 글(<span class="badge ad">⚠광고</span>)이다.
+        <p class="blog-note">블로그 단독 수집분. 언론이 다루지 않는 <b>매물·호가·구역 동향·사업성 분석</b>이 주 가치다.
+          <b>{tr_n}건</b>은 직접 등록한 구독 필자(<span class="badge trust">⭐신뢰</span>)이고 나머지는 검색으로 걸린 글이다.
+          <b>{ad_n}건</b>은 중개업소·분양대행 글(<span class="badge ad">⚠광고</span>). 어느 쪽이든 검증되지 않은 개인 견해다.
           뉴스보다 낮은 스코어 기준({meta['blog_min_score']}점)으로 실었으니 교차확인 후 판단할 것.
           {trunc_note}</p>
         <div class="grid">{blog_cards}</div>
@@ -257,6 +269,7 @@ a.title:hover{{color:var(--c)}}
 .badge{{padding:2px 7px;border-radius:5px;font-size:11px;font-weight:700}}
 .corr{{background:#fef3c7;color:#b45309}}
 .ad{{background:#fee2e2;color:#b91c1c}}
+.trust{{background:#dcfce7;color:#15803d}}
 .blog-note{{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:11px 14px;
   font-size:12.5px;color:#78350f;margin-bottom:14px;line-height:1.6}}
 .tier1{{background:#dcfce7;color:#166534}}.tier2{{background:#dbeafe;color:#1e40af}}.tier3{{background:#f1f5f9;color:#64748b}}
