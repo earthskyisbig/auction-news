@@ -107,11 +107,21 @@ def parse_rss(src):
         return []
     out = []
     for it in (ch.findall("item") if ch is not None else []):
+        url = (it.findtext("link") or "").strip()
         pub = any_date(it.findtext("pubDate")) or any_date(it.findtext(DC_DATE))
-        # 서울시 피드는 본문을 description이 아니라 <cn>에 담는다
-        desc = it.findtext("description") or it.findtext("cn") or ""
+        if not pub:
+            # 경기도 뉴스포털 카테고리 피드는 날짜 태그가 없다 —
+            # 기사번호(number=YYYYMMDDHHMMSS…)에 발행시각이 박혀 있어 거기서 꺼낸다
+            m = re.search(r"number=(20\d{6})(\d{4})", url)
+            if m:
+                pub = any_date("%s-%s-%s %s:%s" % (m.group(1)[:4], m.group(1)[4:6],
+                                                   m.group(1)[6:8], m.group(2)[:2], m.group(2)[2:]))
+        # 본문 태그가 매체마다 다르다: 표준 description, 서울시 <cn>,
+        # 경기도는 export 버그로 <deion>(description이 잘린 것)·<contents>
+        desc = (it.findtext("description") or it.findtext("cn")
+                or it.findtext("deion") or it.findtext("contents") or "")
         out.append({"title": clean(it.findtext("title")),
-                    "url": (it.findtext("link") or "").strip(),
+                    "url": url,
                     "desc": clean(desc)[:1000],
                     "pub": pub})
     return out
@@ -224,17 +234,25 @@ def main():
             sys.stderr.write("WARN: %s 알 수 없는 type=%s\n" % (src["id"], src.get("type")))
             continue
         items = parser(src)
+        # 소스별 추가 통과 용어. 예: 경기도 교통 피드는 철도·GTX가 곧 입지 호재라
+        # 공용 topic_filter(부동산 어휘)만으로는 다 걸러져 버린다.
+        terms = topic + src.get("topic_extra", [])
+        # 소스별 기간 상한. 경기도 카테고리 피드처럼 갱신이 느린 곳은 공용 상한(21일)에
+        # 전량이 걸려 영구 0건이 된다.
+        src_cutoff = cutoff
+        if src.get("max_age_days"):
+            src_cutoff = datetime.now(timezone.utc) - timedelta(days=int(src["max_age_days"]))
         kept = off = aged = 0
         for it in items:
             if kept >= limit:
                 break
             if not it["title"] or not it["url"]:
                 continue
-            if it["pub"] and datetime.fromisoformat(it["pub"]) < cutoff:
+            if it["pub"] and datetime.fromisoformat(it["pub"]) < src_cutoff:
                 aged += 1
                 continue
             hay = it["title"] + " " + it["desc"]
-            if src.get("filter") and not C.is_on_topic(hay, topic):
+            if src.get("filter") and not C.is_on_topic(hay, terms):
                 off += 1
                 continue
             aid = article_id(it["title"], it["url"])
@@ -253,8 +271,10 @@ def main():
             })
             kept += 1
         report.append("%s %d건(수신 %d·주제밖 %d·기간밖 %d)" % (src["id"], kept, len(items), off, aged))
-        if not kept:
-            sys.stderr.write("WARN: %s 수집 0건 — 사이트 구조 변경 여부 확인 필요\n" % src["id"])
+        if not items:
+            # 수신 자체가 0이면 구조 변경·차단 의심. 필터로 걸러진 0건은 정상이라 WARN하지 않는다
+            # (경기도 보도자료처럼 그날 부동산 건이 하나도 없는 날이 실제로 있다).
+            sys.stderr.write("WARN: %s 수신 0건 — 사이트 구조 변경·차단 여부 확인 필요\n" % src["id"])
 
     sys.stderr.write("INFO: " + " | ".join(report) + "\n")
     payload = json.dumps(results, ensure_ascii=False, indent=2)

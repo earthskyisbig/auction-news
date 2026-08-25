@@ -115,6 +115,46 @@
       "tier": 2,
       "fallback_category": "redevelopment",
       "filter": false
+    },
+    {
+      "id": "gg_policy",
+      "name": "경기도 주거정책 소식",
+      "type": "rss",
+      "url": "https://gnews.gg.go.kr/rss/categoryRssSearch.do?kwd=E004&policyCode=E004",
+      "tier": 1,
+      "fallback_category": "policy",
+      "filter": true,
+      "max_age_days": 90
+    },
+    {
+      "id": "gg_transit",
+      "name": "경기도 교통 소식",
+      "type": "rss",
+      "url": "https://gnews.gg.go.kr/rss/categoryRssSearch.do?kwd=E007&policyCode=E007",
+      "tier": 1,
+      "fallback_category": "urban_plan",
+      "filter": true,
+      "topic_extra": [
+        "철도",
+        "GTX",
+        "광역교통",
+        "전철",
+        "도시철도",
+        "경전철",
+        "환승",
+        "역사 신설",
+        "노선"
+      ],
+      "max_age_days": 90
+    },
+    {
+      "id": "gg_bodo",
+      "name": "경기도 보도자료",
+      "type": "rss",
+      "url": "https://gnews.gg.go.kr/rss/gnewsRssBodo.do",
+      "tier": 1,
+      "fallback_category": "urban_plan",
+      "filter": true
     }
   ]
 }
