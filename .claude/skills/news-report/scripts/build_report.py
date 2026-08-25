@@ -7,10 +7,14 @@
   python build_report.py --since 2026-07-01 --min-score 30 --out reports/report.html
 
 구성: 대형 기준일 헤더 → sticky 카테고리 네비(클릭 시 해당 섹션 이동) →
-      카테고리별 요약(톱 헤드라인) → 카테고리별 전체 카드(스코어순).
+      카테고리별 요약(톱 헤드라인) → 카테고리별 전체 카드(스코어순) → 🏘 현장 목소리(블로그).
+
+블로그는 tier3 고정이라 뉴스 기준(min-score 45)을 구조적으로 못 넘긴다. 묻어두면 워치리스트
+현장글(매물·호가·구역 동향)이 영영 안 보이므로 별도 섹션에 낮은 임계(blog_channel.report_min_score)로
+싣고, 중개업소 글은 ⚠광고 배지를 단다(판단 재료로는 쓰되 포지션이 걸린 글임을 표시).
 디자인: 지식베이스 표준(다크 네비 #1e293b, 화이트 콘텐츠, 카테고리 색상코딩).
 """
-import argparse, html, json, os, sys
+import argparse, html, json, os, re, sys
 from datetime import datetime, timedelta, timezone
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "news-curation", "scripts"))
 import db as D
@@ -29,8 +33,37 @@ CATS = [
 ]
 
 
+BLOG_COLOR = "#a16207"
+
+# blog_channel 기본값 — --sources 미지정 시 사용
+BLOG_DEFAULT = {"report_min_score": 25, "ad_markers": []}
+
+
 def esc(s):
     return html.escape(s or "")
+
+
+def load_blog_channel(path):
+    if not path or not os.path.isfile(path):
+        return dict(BLOG_DEFAULT)
+    try:
+        cfg = json.load(open(path, encoding="utf-8")).get("blog_channel") or {}
+    except Exception as e:
+        sys.stderr.write(f"WARN: blog_channel 로드 실패({e}) → 기본값\n")
+        return dict(BLOG_DEFAULT)
+    out = dict(BLOG_DEFAULT); out.update({k: cfg[k] for k in out if k in cfg})
+    return out
+
+
+def ad_matcher(markers):
+    """블로거명이 중개업소·분양대행으로 보이면 True. 컴파일 실패한 패턴은 건너뛴다."""
+    pats = []
+    for m in markers:
+        try:
+            pats.append(re.compile(m))
+        except re.error as e:
+            sys.stderr.write(f"WARN: ad_marker 무시 '{m}' ({e})\n")
+    return lambda src: any(p.search(src or "") for p in pats)
 
 
 def fetch(con, since_iso, min_score, relevant_only=False):
@@ -40,6 +73,16 @@ def fetch(con, since_iso, min_score, relevant_only=False):
     q += " ORDER BY score DESC, pub_date DESC"
     rows = con.execute(q, (since_iso, min_score)).fetchall()
     return [dict(r) for r in rows]
+
+
+def fetch_blog(con, since_iso, min_score, exclude_ids):
+    """블로그 단독 수집분(뉴스와 병합되지 않은 것)만. 뉴스 섹션과의 중복은 제외."""
+    q = ("SELECT * FROM articles WHERE (pub_date>=? OR pub_date='') AND score>=? AND relevance=1 "
+         "AND methods LIKE '%\"blog\"%' AND methods NOT LIKE '%\"api\"%' "
+         # 워치리스트 현장글이 가장 값어치 있는데 점수는 낮다 → 상한(--blog-top)에 잘리지 않도록 먼저 세운다
+         "ORDER BY (category='watch') DESC, score DESC, pub_date DESC")
+    rows = con.execute(q, (since_iso, min_score)).fetchall()
+    return [dict(r) for r in rows if r["id"] not in exclude_ids]
 
 
 def fmt_date(iso):
@@ -59,13 +102,15 @@ def latest_pubdate(articles):
         return None
 
 
-def card(a):
+def card(a, is_ad=False):
     methods = json.loads(a["methods"] or "[]")
     kws = json.loads(a["keywords_matched"] or "[]")
     badge = ""
     if a["corroboration"] and a["corroboration"] >= 2:
         badge = f'<span class="badge corr">교차출처 {a["corroboration"]}</span>'
     tier_b = f'<span class="badge tier{a["source_tier"]}">T{a["source_tier"]}</span>'
+    if is_ad:
+        badge += '<span class="badge ad" title="중개업소·분양대행 블로그 — 포지션이 걸린 글">⚠광고</span>'
     method_b = "".join(f'<span class="m">{esc(m)}</span>' for m in methods)
     kw_b = "".join(f'<span class="kw">{esc(k)}</span>' for k in kws[:4])
     link = a["url"] or a["naver_url"] or ""
@@ -84,16 +129,21 @@ def card(a):
     </div>"""
 
 
-def build(articles, meta):
+def build(articles, meta, blogs=None, is_ad=lambda s: False):
     by_cat = {}
     for a in articles:
         by_cat.setdefault(a["category"], []).append(a)
     present = [(c, l, col) for c, l, col in CATS if by_cat.get(c)]
 
+    blogs = blogs or []
+
     # sticky 네비 버튼 (클릭 시 해당 섹션으로 이동)
     nav = "".join(
         f'<a class="navbtn" href="#cat-{c}" style="--c:{col}"><span class="nb-n">{len(by_cat.get(c, []))}</span>{esc(l)}</a>'
         for c, l, col in present)
+    if blogs:
+        nav += (f'<a class="navbtn" href="#blog" style="--c:{BLOG_COLOR}">'
+                f'<span class="nb-n">{len(blogs)}</span>🏘 현장 목소리</a>')
 
     # 카테고리별 요약 (톱 헤드라인 3개)
     summ = ""
@@ -123,6 +173,22 @@ def build(articles, meta):
         <h2><span class="dot"></span>{esc(l)} <span class="cnt">{len(items)}건</span>
           <a class="top-link" href="#top">↑ 맨 위로</a></h2>
         <div class="grid">{cards}</div>
+      </section>"""
+
+    if blogs:
+        ad_n = sum(1 for b in blogs if is_ad(b["source"]))
+        trunc_note = (f'<br><b>표시 {len(blogs)}건 / 조건 충족 {meta["blog_total"]}건</b> — 스코어 상위만 실었다.'
+                      if meta["blog_total"] > len(blogs) else "")
+        blog_cards = "".join(card(b, is_ad(b["source"])) for b in blogs)
+        sections += f"""
+      <section id="blog" class="cat blog" style="--c:{BLOG_COLOR}">
+        <h2><span class="dot"></span>🏘 현장 목소리 <span class="cnt">{len(blogs)}건</span>
+          <a class="top-link" href="#top">↑ 맨 위로</a></h2>
+        <p class="blog-note">네이버 블로그 단독 수집분. 언론이 다루지 않는 <b>매물·호가·구역 동향</b>이 주 가치이나
+          검증되지 않은 개인 견해이고, <b>{ad_n}건</b>은 중개업소·분양대행 글(<span class="badge ad">⚠광고</span>)이다.
+          뉴스보다 낮은 스코어 기준({meta['blog_min_score']}점)으로 실었으니 교차확인 후 판단할 것.
+          {trunc_note}</p>
+        <div class="grid">{blog_cards}</div>
       </section>"""
 
     return f"""<!doctype html><html lang="ko"><head>
@@ -190,6 +256,9 @@ a.title:hover{{color:var(--c)}}
 .src{{font-weight:600;color:#475569}}
 .badge{{padding:2px 7px;border-radius:5px;font-size:11px;font-weight:700}}
 .corr{{background:#fef3c7;color:#b45309}}
+.ad{{background:#fee2e2;color:#b91c1c}}
+.blog-note{{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:11px 14px;
+  font-size:12.5px;color:#78350f;margin-bottom:14px;line-height:1.6}}
 .tier1{{background:#dcfce7;color:#166534}}.tier2{{background:#dbeafe;color:#1e40af}}.tier3{{background:#f1f5f9;color:#64748b}}
 .m{{background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700}}
 .kws{{margin-top:10px;display:flex;flex-wrap:wrap;gap:5px}}
@@ -202,6 +271,7 @@ footer{{text-align:center;color:var(--mut);font-size:12px;padding:24px}}
   <div class="sub">
     <span class="stat">기간 <b>{meta['window']}</b></span>
     <span class="stat">총 <b>{meta['count']}</b>건</span>
+    <span class="stat">현장 목소리 <b>{meta['blog_count']}</b>건</span>
     <span class="stat">스코어 <b>{meta['min_score']}</b>점 이상</span>
     <span class="stat">최신기사 <b>{meta['latest']}</b></span>
     <span class="stat">생성 {meta['gen']}</span>
@@ -223,6 +293,10 @@ def main():
     ap.add_argument("--since")
     ap.add_argument("--min-score", type=float, default=0)
     ap.add_argument("--relevant-only", action="store_true", help="검색어가 실제 본문에 있는 기사만")
+    ap.add_argument("--sources", help="sources.json — blog_channel(현장 목소리 임계·광고 판정) 적용")
+    ap.add_argument("--blog-min-score", type=float, help="현장 목소리 섹션 임계(미지정 시 blog_channel.report_min_score)")
+    ap.add_argument("--no-blog-section", action="store_true", help="현장 목소리(블로그) 섹션 생략")
+    ap.add_argument("--blog-top", type=int, default=80, help="현장 목소리 최대 표시 건수(0=전체)")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
@@ -234,22 +308,30 @@ def main():
         since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         window = f"최근 {days}일"
 
+    ch = load_blog_channel(args.sources)
+    blog_min = args.blog_min_score if args.blog_min_score is not None else ch["report_min_score"]
+
     con = D.connect(); D.init(con)
     arts = fetch(con, since, args.min_score, args.relevant_only)
-    lp = latest_pubdate(arts)
+    blogs = [] if args.no_blog_section else fetch_blog(con, since, blog_min, {a["id"] for a in arts})
+    blog_total = len(blogs)
+    if args.blog_top and blog_total > args.blog_top:
+        blogs = blogs[:args.blog_top]
+    lp = latest_pubdate(arts + blogs)
     now = datetime.now()
     meta = {
         "asof": now.strftime("%Y년 %m월 %d일"),
         "date_kr": now.strftime("%Y-%m-%d"),
         "window": window, "count": len(arts), "min_score": int(args.min_score),
+        "blog_min_score": int(blog_min), "blog_count": len(blogs), "blog_total": blog_total,
         "latest": lp.astimezone().strftime("%m/%d %H:%M") if lp else "-",
         "gen": now.strftime("%Y-%m-%d %H:%M"),
     }
-    html_out = build(arts, meta)
+    html_out = build(arts, meta, blogs, ad_matcher(ch["ad_markers"]))
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(html_out)
-    sys.stderr.write(f"OK: {len(arts)}건 → {args.out}\n")
+    sys.stderr.write(f"OK: 뉴스 {len(arts)}건 + 현장 목소리 {len(blogs)}/{blog_total}건 → {args.out}\n")
     print(args.out)
 
 

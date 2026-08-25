@@ -16,11 +16,35 @@ description: 부동산 뉴스를 네이버 오픈 API·WebSearch/WebFetch·브�
 ## Phase 0: 컨텍스트 확인
 1. `_workspace/` 산출물과 `data/news.db` 존재 여부 확인.
 2. 실행 모드 판별:
+   - **지역이 지정됨**(경매 물건 주소, 입지분석 대상 단지 등) → **지역 온디맨드 모드** (아래 별도 절)
    - `data/news.db` 없음 → **초기 실행** (전체 Phase)
    - 사용자가 "리포트만 다시" → **리포트 재생성** (Phase 4만)
    - 사용자가 "특정 카테고리만 다시" → **부분 재수집** (해당 카테고리 콜렉터 → curator → reporter)
    - 그 외 정기 실행 → **증분 수집** (기존 `_workspace/*.json`을 `_workspace_prev/`로 이동 후 전체)
 3. `NAVER_CLIENT_ID/SECRET` 존재 확인 → 없으면 API 채널 제외하고 사용자에 `.env` 안내.
+
+## 지역 온디맨드 모드 (Phase 1~4 대신 실행)
+
+경매 물건은 **뜬 뒤에야 지역이 정해진다.** 워치리스트는 "미리 등록한 지역"만 수집하므로 이 상황을 커버하지 못한다. 지역이 지정된 요청은 정기 파이프라인 대신 `scripts/region_news.py`를 쓴다.
+
+```bash
+python scripts/region_news.py --sigungu 시흥시 --dong 은행동 --complex 은계브리즈힐
+# 옵션: --district 은계지구  --extra "제2경인선"  --top 8  --dry-run  --no-ingest
+```
+
+**동작**: 주소 기반 1차 검색 → 본문에서 지구명·사업명 **역추출**(○○지구/○○구역/○○선/○○신도시) → 상위 후보로 2차 검색 → `ingest.py` 적재(`run_id = od-{지역}-{날짜}`) → 확정/계획/검토중 3단계 분류 출력.
+
+**왜 2단계인가**: 지구명·사업명은 주소에서 도출할 수 없다. 1차만으로는 `은계지구`를 절대 못 찾는다. 근접 가중치(읍면동 동시출현 기사 ×3)로 같은 시의 다른 지구가 상위를 차지하는 것을 막는다.
+
+**워치리스트와의 역할 구분** — 둘은 대체 관계가 아니다:
+
+| | `config/watchlist.json` | `region_news.py` |
+|---|---|---|
+| 용도 | **장기 모니터링** — 보유 물건·계속 지켜볼 지역 | **일회성 조사** — 이번에 분석할 지역 |
+| 시점 | 매일 자동 수집 + 즉시 알림 | 필요할 때 수동 실행 |
+| 전제 | 지역을 미리 안다 | 지역을 몰라도 된다 |
+
+**주의**: `data/news.db`는 로컬 `.gitignore` 대상이지만 GitHub Actions는 강제 커밋한다 → 로컬 파일과 원격 커밋본이 조용히 갈라진다. `region_news.py`가 실행 시 크기를 비교해 경고한다. **정본은 원격이다.**
 
 ## Phase 1: 준비
 - `config/keywords.json`, `config/sources.json` 로드(사용자가 관심사·기간을 지정하면 반영).
@@ -30,7 +54,8 @@ description: 부동산 뉴스를 네이버 오픈 API·WebSearch/WebFetch·브�
 ## Phase 2: 병렬 수집 (서브 에이전트, run_in_background)
 콜렉터를 동시에 스폰한다:
 - `news-api-collector` → `_workspace/api_raw.json` (네이버 뉴스 API, config 키워드 일괄)
-- 네이버 블로그 → `_workspace/blog_raw.json` (`naver_blog_search.py --config`, 현장·후기·호재 보강, method=blog)
+- 네이버 블로그 → `_workspace/blog_raw.json` (`naver_blog_search.py --config --sources`, 현장 매물·호가·구역 동향, method=blog)
+  - **반드시 `--sources config/sources.json`을 넘긴다.** 없으면 `blog_channel` 제한이 풀려 전 카테고리를 긁는다(정책·시장 재탕글이 노이즈의 대부분). 수집 범위·정렬·게시일 상한은 `blog_channel`에서만 조정한다.
 - `news-web-researcher` → `_workspace/web_raw.json` (WebSearch/WebFetch 보완)
 - `news-crawler` → `_workspace/crawl_raw.json` (브라우저 크롤, 실패 허용)
 
@@ -50,9 +75,12 @@ python .claude/skills/news-curation/scripts/ingest.py \
 ```
 python .claude/skills/news-report/scripts/build_report.py \
   --days {수집주기} --min-score {정기20~30|아카이브0} \
+  --sources config/sources.json \
   --out reports/news_{YYYY-MM-DD}.html
 ```
 경로와 카테고리별 톱 기사 하이라이트를 사용자에 보고.
+
+**🏘 현장 목소리 섹션**: 블로그는 tier3 고정(16점)이라 뉴스 임계(45점)를 구조적으로 못 넘긴다. 그대로 두면 워치리스트 현장글이 리포트에 영영 안 나오므로, 블로그 단독 수집분만 별도 섹션에 낮은 임계(`blog_channel.report_min_score`, 기본 25)로 싣는다. `watch` 카테고리를 최상단에 세우고(점수가 낮아 표시 상한에 잘리는 것을 막음), 중개업소·분양대행 블로그는 `⚠광고` 배지를 단다(버리지 않음 — 정보는 있되 포지션이 걸린 글). 표시 상한은 `--blog-top`(기본 80)이며 잘린 건수는 리포트에 명시된다. 아카이브 리포트는 전수 보존이 목적이라 `--no-blog-section`.
 
 ## 데이터 전달 프로토콜
 - **파일 기반**: `_workspace/{api,web,crawl}_raw.json` → curator → `data/news.db` → reporter

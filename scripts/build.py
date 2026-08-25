@@ -52,7 +52,8 @@ def main():
         run([f"{NAVER}/naver_news_search.py", "--config", "config/keywords.json",
              "--watchlist", "config/watchlist.json", "--out", "_workspace/api_raw.json"])
         run([f"{NAVER}/naver_blog_search.py", "--config", "config/keywords.json",
-             "--watchlist", "config/watchlist.json", "--out", "_workspace/blog_raw.json"])
+             "--watchlist", "config/watchlist.json", "--sources", "config/sources.json",
+             "--out", "_workspace/blog_raw.json"])
         inputs = ["_workspace/api_raw.json", "_workspace/blog_raw.json"]
     else:
         print("WARN: NAVER 키 없음 → API·블로그 수집 건너뜀 (기존 DB로 리포트만)", flush=True)
@@ -63,8 +64,9 @@ def main():
 
     # 리포트 2종
     run([f"{REP}/build_report.py", "--days", "7", "--min-score", "45", "--relevant-only",
-         "--out", f"reports/news_briefing_{TODAY}.html"])
-    run([f"{REP}/build_report.py", "--days", "3650", "--min-score", "0",
+         "--sources", "config/sources.json", "--out", f"reports/news_briefing_{TODAY}.html"])
+    # 아카이브는 전수 보존이 목적 → 블로그 섹션 없이 카테고리별로 전부 싣는다
+    run([f"{REP}/build_report.py", "--days", "3650", "--min-score", "0", "--no-blog-section",
          "--out", f"reports/news_archive_{TODAY}.html"])
     print(f"✅ 빌드 완료: {TODAY}", flush=True)
 

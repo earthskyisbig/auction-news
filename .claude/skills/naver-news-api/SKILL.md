@@ -52,3 +52,23 @@ curator의 `ingest.py`가 그대로 받는 dict 배열. 필드: `id, title, desc
 
 - 키 미설정 → exit 2 + stderr 안내. 오케스트레이터는 이 경우 API 단계를 건너뛰고 WebSearch/크롤링으로 진행한다.
 - 개별 쿼리 HTTP 에러 → 해당 쿼리만 건너뛰고 경고, 나머지 계속.
+
+## 블로그 채널 규칙 (`naver_blog_search.py`)
+
+블로그는 뉴스와 성격이 다르다. **제도 요약 재탕글이 노이즈의 대부분**이고, 값어치는 워치리스트 지역의 현장 매물·호가·구역 동향에 몰려 있다. 그래서 수집 범위를 `config/sources.json`의 `blog_channel`로 좁힌다.
+
+```bash
+python naver_blog_search.py --config config/keywords.json --watchlist config/watchlist.json   --sources config/sources.json --out _workspace/blog_raw.json
+```
+
+| 키 | 뜻 |
+|---|---|
+| `categories` | 블로그를 수집할 카테고리 화이트리스트(기본 `local`,`redevelopment`). 나머지는 제외 |
+| `always_watch` | true면 워치리스트 키워드는 화이트리스트와 무관하게 항상 수집 |
+| `sort` | `date` 권장. `sim`이면 10년 전 글이 섞인다 |
+| `max_age_days` | 게시일 상한(기본 400). 날짜 미상은 통과 |
+| `report_min_score` / `ad_markers` | 리포트 쪽에서 사용(현장 목소리 섹션 임계·광고 판정) |
+
+- `--sources`를 빼면 제한이 풀려 **전 카테고리를 긁는다.** 정기 파이프라인에서는 반드시 넘긴다.
+- 일회성으로 전부 긁어야 하면 `--all-categories`.
+- 카테고리를 늘리기 전에 그 카테고리 블로그가 뉴스에 없는 정보를 주는지 먼저 확인할 것 — `policy`/`market`은 확인 결과 전량 재탕이었다.

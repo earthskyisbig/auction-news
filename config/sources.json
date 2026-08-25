@@ -10,5 +10,14 @@
     {"name": "국토교통부 보도자료", "url": "https://www.molit.go.kr/USR/NEWS/m_71/lst.jsp", "note": "정책 원문. 표/게시판 구조"},
     {"name": "한경 부동산", "url": "https://www.hankyung.com/realestate", "note": "시장·분양 심층"},
     {"name": "매경 부동산", "url": "https://www.mk.co.kr/news/realestate/", "note": "시장·정책"}
-  ]
+  ],
+  "blog_channel": {
+    "_comment": "블로그 채널 전용 설정. 블로그는 뉴스와 성격이 달라 별도 규칙을 쓴다. categories에 없는 카테고리는 블로그 수집에서 제외한다(정책·시장 요약 재탕글이 노이즈의 대부분). watch(워치리스트)는 always_watch=true면 목록과 무관하게 항상 수집한다. ad_markers는 블로거명에 대한 정규식 — 걸리면 버리지 않고 리포트에 ⚠광고 배지를 단다.",
+    "categories": ["local", "redevelopment"],
+    "always_watch": true,
+    "sort": "date",
+    "max_age_days": 400,
+    "report_min_score": 25,
+    "ad_markers": ["\\d{2,4}[-)]\\s?\\d{3,4}[-\\s]?\\d{3,4}", "[☎☏]", "010[-\\s]?\\d", "공인중개", "중개사무소", "부동산중개", "분양대행", "상담문의"]
+  }
 }
