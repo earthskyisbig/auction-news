@@ -155,6 +155,15 @@
       "tier": 1,
       "fallback_category": "urban_plan",
       "filter": true
+    },
+    {
+      "id": "naver_re",
+      "name": "네이버 부동산 섹션",
+      "type": "naver_section",
+      "url": "https://news.naver.com/breakingnews/section/101/260",
+      "tier": 2,
+      "fallback_category": "market",
+      "filter": false
     }
   ]
 }

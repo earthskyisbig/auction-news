@@ -44,9 +44,11 @@ def compute_relevance(rec):
     """검색어(keywords_matched)의 핵심 토큰이 제목/본문에 실제 존재하면 1, 아니면 0.
     네이버 검색의 fuzzy 매칭 노이즈를 걸러낸다.
 
-    단, 신뢰 블로거 RSS(raw.trusted)는 검색 결과가 아니라 구독 콘텐츠다 —
-    걸러낼 검색 노이즈 자체가 없으므로 면제한다."""
-    if (rec.get("raw") or {}).get("trusted"):
+    단, 신뢰 블로거 RSS(raw.trusted)와 네이버 섹션 수집(raw.section)은 검색 결과가
+    아니다 — 걸러낼 검색 노이즈 자체가 없으므로 면제한다. 섹션 기사는 편집자가
+    부동산 섹션에 넣은 것이라, 심층·단독처럼 제목이 키워드와 어긋나도 주제는 보장된다."""
+    r = rec.get("raw") or {}
+    if r.get("trusted") or r.get("section"):
         return 1
     hay = (rec.get("title", "") + " " + rec.get("description", "")).lower()
     for kw in rec.get("keywords_matched", []):
@@ -159,6 +161,8 @@ def merge_group(items, tier_map):
     raw = dict(base.get("raw") or {})
     if any((i.get("raw") or {}).get("trusted") for i in items):
         raw["trusted"] = True      # 교차병합돼도 신뢰 표시는 남긴다
+    if any((i.get("raw") or {}).get("section") for i in items):
+        raw["section"] = True      # 섹션 유입 표시도 병합에서 살아남아야 relevance 면제가 유지된다
     return {
         "id": base.get("id") or D and __import__("hashlib").sha1((base["title"] + base.get("url", "")).encode()).hexdigest()[:16],
         "title": base["title"],

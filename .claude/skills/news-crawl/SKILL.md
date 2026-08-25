@@ -70,6 +70,7 @@ python .claude/skills/news-crawl/scripts/press_feeds.py --press config/press.jso
 | 인천시 보도자료 | `incheon` | `<li>` 블록의 subject·요약·날짜. 링크는 `?repSeq=` 쿼리로 기사 구분 |
 | 디벨로퍼뉴스 | `rss` | 정비사업 전문. 표준 RSS |
 | 경기도 뉴스포털 3종 | `rss` | 무인증 경로(`categoryRssSearch.do?kwd=E004/E007`, `gnewsRssBodo.do`). 카테고리 피드는 **날짜 태그가 없어** 기사번호(YYYYMMDDHHMM…)에서 추출, 본문 태그가 `deion`으로 잘려 있음. 갱신이 느려 `max_age_days: 90` |
+| 네이버 부동산 섹션 | `naver_section` | 경제>부동산(101/260) SSR 목록. **편집자 큐레이션 전량**이라 검색어와 어긋나는 심층·단독을 잡는다. method=section, `raw.section`으로 relevance 면제, 기관 원문이 아니라 🏛공식 배지는 안 붙는다. 날짜가 목록에 없어 수집 시각을 쓴다 |
 
 - `filter: true`인 소스는 `topic_filter` 용어가 제목·요약에 없으면 버린다. **정부·지자체 보도자료는 철도·보험·축제까지 전 분야**라 필수다(실측: 국토부 30건 중 17건, 서울시 50건 중 40건이 주제 밖).
 - `pages`로 목록 페이지를 넘긴다(게시판 1페이지 10건 → 하루치를 놓친다).

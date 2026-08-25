@@ -200,7 +200,33 @@ def parse_incheon(src):
     return out
 
 
-PARSERS = {"rss": parse_rss, "molit": parse_molit, "fsc": parse_fsc, "incheon": parse_incheon}
+def parse_naver_section(src):
+    """네이버 뉴스 섹션(예: 경제>부동산 101/260). SSR HTML이라 HTTP로 잡힌다.
+
+    검색 API와 달리 **네이버 편집자가 부동산 섹션에 넣은 기사 전량**이라, 심층·단독처럼
+    제목이 검색 키워드와 어긋나는 기사를 놓치지 않는다. 날짜는 목록에 없어 비워 둔다
+    (속보 섹션이라 사실상 당일 기사뿐이고, 날짜 미상은 기간 필터를 통과한다).
+    """
+    body = get(src["url"])
+    out = []
+    for blk in re.split(r'class="sa_text"', body)[1:]:
+        m = re.search(r'href="(https://n\.news\.naver\.com/mnews/article/\d+/\d+)"'
+                      r'.*?class="sa_text_strong">([^<]+)', blk, re.S)
+        if not m:
+            continue
+        lede = re.search(r'class="sa_text_lede">([^<]*)', blk)
+        press = re.search(r'class="sa_text_press">([^<]+)', blk)
+        out.append({"title": clean(m.group(2)), "url": m.group(1),
+                    "desc": clean(lede.group(1)) if lede else "",
+                    # 속보 섹션이라 사실상 당일 기사다. 비워 두면 최신성 점수(20점)를 통째로
+                    # 잃으므로 수집 시각을 쓴다(이미 본 기사는 dedupe로 걸러져 재적재되지 않는다).
+                    "pub": iso(datetime.now(KST)),
+                    "press": clean(press.group(1)) if press else ""})
+    return out
+
+
+PARSERS = {"rss": parse_rss, "molit": parse_molit, "fsc": parse_fsc,
+           "incheon": parse_incheon, "naver_section": parse_naver_section}
 
 
 def main():
@@ -260,14 +286,24 @@ def main():
                 continue
             seen.add(aid)
             cat, matched = C.classify(hay, pairs, src.get("fallback_category", "policy"))
+            is_section = src.get("type") == "naver_section"
+            raw = {"press_id": src["id"],
+                   "domain": urllib.parse.urlparse(it["url"]).netloc.replace("www.", "")}
+            if is_section:
+                # 언론 기사이지 기관 원문이 아니다 — official·trusted 배지를 달지 않는다.
+                # section 플래그는 relevance 면제용(편집자가 부동산 섹션에 넣은 기사라 검색 노이즈가 없다).
+                raw["section"] = True
+            else:
+                raw["trusted"] = True
+                raw["official"] = True
             results.append({
                 "id": aid, "title": it["title"], "description": it["desc"], "url": it["url"],
-                "naver_url": "", "source": src["name"], "pub_date": it["pub"], "category": cat,
-                "keywords_matched": matched, "collection_method": "press",
+                "naver_url": "", "source": it.get("press") or src["name"],
+                "pub_date": it["pub"], "category": cat,
+                "keywords_matched": matched,
+                "collection_method": "section" if is_section else "press",
                 "source_tier_hint": int(src.get("tier", 2)),
-                # official → ingest가 티어를 고정하고 relevance 필터를 면제한다(원문은 검색 노이즈가 아니다)
-                "raw": {"trusted": True, "official": True, "press_id": src["id"],
-                        "domain": urllib.parse.urlparse(it["url"]).netloc.replace("www.", "")},
+                "raw": raw,
             })
             kept += 1
         report.append("%s %d건(수신 %d·주제밖 %d·기간밖 %d)" % (src["id"], kept, len(items), off, aged))
