@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>부동산 뉴스 봇 만들기 · Claude Code 실습 가이드</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<style>
+:root{--bg:#0b0b0d;--bg2:#141417;--bg3:#1b1b20;--line:#26262c;--line2:#33333b;--ink:#f4f4f5;--mut:#9a9aa2;--mut2:#5d5d66;--lime:#c8fa46;--lime-dim:#7f9c33;--cyan:#5fe3d0;}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#000;color:var(--ink);font-family:'Pretendard',system-ui,sans-serif;letter-spacing:-.01em;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.head-font{font-family:'Pretendard',system-ui,sans-serif}
+#stage{position:relative;width:100vw;height:56.25vw;max-height:100vh;max-width:177.78vh;background:var(--bg);overflow:hidden}
+.glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(60% 45% at 85% -10%, rgba(200,250,70,.08), transparent 60%),radial-gradient(50% 40% at 0% 110%, rgba(200,250,70,.05), transparent 55%)}
+.slide{position:absolute;inset:0;padding:5% 6%;display:none;flex-direction:column;opacity:0;transition:opacity .35s}
+.slide.on{display:flex;opacity:1}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:2.2%}
+.part{display:inline-flex;align-items:center;gap:9px;font-size:1.05vw;letter-spacing:.14em;text-transform:uppercase;color:var(--mut)}
+.part .dot{width:.55vw;height:.55vw;border-radius:50%;background:var(--lime)}
+.kind{font-size:.9vw;letter-spacing:.12em;text-transform:uppercase;font-weight:700;padding:.5vw 1.1vw;border-radius:2vw}
+.kind.concept{color:var(--cyan);background:rgba(95,227,208,.12);border:1px solid rgba(95,227,208,.3)}
+.kind.step{color:var(--bg);background:var(--lime)}
+.kind.intro{color:var(--mut);background:var(--bg3);border:1px solid var(--line2)}
+h1{font-size:5vw;line-height:1;font-weight:800;letter-spacing:-.03em}
+h1 .lm{color:var(--lime)}
+h2{font-size:3vw;line-height:1.05;font-weight:800;letter-spacing:-.025em;margin-bottom:1.6%}
+h2 .lm{color:var(--lime)}
+.lead{font-size:1.5vw;color:var(--mut);line-height:1.5;max-width:64%}
+.body{flex:1;display:flex;flex-direction:column;justify-content:center;gap:1.4vw;min-height:0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:1.8vw;align-items:center}
+.cols.wide-r{grid-template-columns:.82fr 1.18fr}
+.cols.wide-l{grid-template-columns:1.15fr .85fr}
+ul.bul{list-style:none;display:flex;flex-direction:column;gap:.95vw}
+ul.bul li{display:flex;gap:1vw;font-size:1.45vw;line-height:1.36;color:#dcdce0}
+ul.bul li .mk{flex-shrink:0;color:var(--lime);font-weight:800;margin-top:.1vw}
+ul.bul li b{color:#fff;font-weight:700}
+ul.bul li .sub{display:block;color:var(--mut);font-size:1.12vw;margin-top:.22vw}
+.prompt{background:var(--bg2);border:1px solid var(--line2);border-left:3px solid var(--lime);border-radius:12px;padding:1.4vw 1.7vw}
+.prompt .tag{font-size:.9vw;letter-spacing:.12em;text-transform:uppercase;color:var(--lime);font-weight:700;margin-bottom:.7vw}
+.prompt p{font-size:1.38vw;line-height:1.46;color:#e8e8ea}
+.prompt p .hl{color:var(--lime)}
+.code{background:#0e0e11;border:1px solid var(--line);border-radius:12px;padding:1.3vw 1.6vw;font-family:ui-monospace,Menlo,monospace;font-size:1.15vw;line-height:1.65;color:#cfe8a0}
+.code .c{color:var(--mut2)} .code .k{color:var(--cyan)} .code .s{color:var(--lime)} .code .hl{color:var(--lime);font-weight:700}
+.tree{font-family:ui-monospace,Menlo,monospace;font-size:1.22vw;line-height:1.85;color:#c9c9cf;background:#0e0e11;border:1px solid var(--line);border-radius:12px;padding:1.3vw 1.7vw}
+.tree .dir{color:var(--cyan)} .tree .hl{color:var(--lime);font-weight:700} .tree .cm{color:var(--mut2)} .tree .new{color:var(--lime)}
+.pipe{display:flex;align-items:stretch;width:100%}
+.pnode{flex:1;background:var(--bg2);border:1px solid var(--line2);border-radius:12px;padding:1.2vw 1vw;text-align:center;display:flex;flex-direction:column;gap:.5vw;justify-content:center}
+.pnode .pt{font-size:1.3vw;font-weight:800}.pnode .pd{font-size:1vw;color:var(--mut);line-height:1.35}
+.pnode.hot{border-color:var(--lime);background:rgba(200,250,70,.07)}
+.parrow{display:flex;align-items:center;color:var(--lime);font-size:1.7vw;padding:0 .6vw}
+.crow{display:grid;grid-template-columns:repeat(var(--n,4),1fr);gap:1.1vw}
+.ccard{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:1.3vw 1.2vw;display:flex;flex-direction:column;gap:.55vw}
+.ccard .ico{font-size:1.7vw}.ccard .ct{font-size:1.4vw;font-weight:800}.ccard .cd{font-size:1.05vw;color:var(--mut);line-height:1.4}
+.ccard.lime{border-color:var(--lime)}.ccard .num{font-size:1vw;font-weight:800;color:var(--lime);font-family:ui-monospace}
+.note{font-size:1.1vw;color:var(--mut);line-height:1.5;background:var(--bg2);border:1px dashed var(--line2);border-radius:10px;padding:1vw 1.3vw}
+.note b{color:var(--lime)}
+.shot{border:1px solid var(--line2);border-radius:12px;overflow:hidden;background:var(--bg2);box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.shot img{display:block;width:100%}
+.shot .cap{font-size:.92vw;color:var(--mut);padding:.55vw 1vw;background:var(--bg3);border-top:1px solid var(--line)}
+.shot3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1vw}
+.shot3 .cap{font-size:.85vw;padding:.5vw .7vw}
+.shotslot{height:15vw;max-height:270px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5vw;text-align:center;padding:1vw;background:repeating-linear-gradient(45deg,#101014,#101014 10px,#131317 10px,#131317 20px);color:var(--mut2);font-size:1vw;line-height:1.5}
+.shotslot .sh-ic{font-size:1.6vw;color:var(--lime-dim)}
+.shotslot b{color:var(--mut);font-weight:700}
+.light .shotslot{background:repeating-linear-gradient(45deg,#eceee8,#eceee8 10px,#e4e7de 10px,#e4e7de 20px)}
+.flow{display:flex;align-items:center;gap:1.2vw;width:100%}
+.fbox{flex:1;background:var(--bg2);border:1px solid var(--line2);border-radius:12px;padding:1.2vw;text-align:center;display:flex;flex-direction:column;gap:.5vw}
+.fbox .ft{font-size:1.25vw;font-weight:800}.fbox .fd{font-size:1vw;color:var(--mut);line-height:1.4}
+.fbox.hot{border-color:var(--lime);background:rgba(200,250,70,.06)}
+.farrow{color:var(--lime);font-size:1.9vw;font-weight:700}
+.tg{background:#0e1621;border:1px solid #1c2836;border-radius:14px;padding:1.2vw;display:flex;flex-direction:column;gap:.65vw}
+.tg .msg{max-width:82%;padding:.6vw 1vw;border-radius:11px;font-size:1.08vw;line-height:1.36}
+.tg .bot{background:#182533;color:#e6e6e6;align-self:flex-start;border-top-left-radius:3px}
+.tg .me{background:#2b5278;color:#fff;align-self:flex-end;border-top-right-radius:3px}
+.tg .nm{font-size:.82vw;color:#6bb3f0;font-weight:800;margin-bottom:.12vw}
+.tg .msg.bot code{color:var(--lime);font-family:ui-monospace}
+.crumb{display:inline-flex;align-items:center;gap:.55vw;font-size:1.15vw;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:.65vw 1.1vw;flex-wrap:wrap;align-self:flex-start}
+.crumb .ic{color:var(--lime)} .crumb b{color:var(--ink);font-weight:700} .crumb .sep{color:var(--lime);font-weight:800}
+.crumb .last{color:var(--lime)}
+.kvtable{display:flex;flex-direction:column;gap:.55vw}
+.kvrow{display:grid;grid-template-columns:1fr 1.05fr;gap:1vw;align-items:center;background:var(--bg2);border:1px solid var(--line2);border-radius:9px;padding:.7vw 1.1vw}
+.kvrow.kvhead{background:transparent;border:none;padding:.2vw 1.1vw;font-size:1vw;letter-spacing:.08em;text-transform:uppercase;color:var(--mut2)}
+.kvrow .kname{font-family:ui-monospace,Menlo,monospace;font-size:1.18vw;color:var(--lime);font-weight:700}
+.kvrow .kval{font-size:1.1vw;color:#cfcfd4}
+#themeToggle{position:absolute;right:2.2%;top:2.1%;z-index:50;border:1px solid var(--line2);background:var(--bg2);color:var(--ink);border-radius:999px;padding:.55vw .85vw;font:700 .85vw Pretendard,sans-serif;cursor:pointer;display:flex;align-items:center;gap:.4vw}
+.topbar{padding-right:8vw}
+.keyline{margin:.1vw 0 1.2vw!important;padding:.75vw 1.15vw!important;border:1px solid rgba(200,250,70,.28)!important;border-left:3px solid var(--lime)!important;background:rgba(200,250,70,.07)!important;color:var(--ink)!important;font-size:1.27vw!important;line-height:1.42!important}
+#pipelineNav{position:absolute;z-index:30;left:12%;right:12%;bottom:4.1%;display:flex;align-items:center;justify-content:center;gap:.35vw}
+.pipeStep{display:flex;align-items:center;gap:.35vw;font-size:.72vw;font-weight:750;color:var(--mut2);white-space:nowrap}
+.pipeStep:not(:last-child)::after{content:'›';color:var(--line2);font-size:.9vw;margin-left:.25vw}
+.pipeStep .pDot{width:.43vw;height:.43vw;border-radius:50%;background:var(--line2)}
+.pipeStep.active{color:var(--lime)} .pipeStep.active .pDot{background:var(--lime);box-shadow:0 0 0 4px rgba(200,250,70,.12)}
+.copyable{position:relative;cursor:pointer}.copyBtn{position:absolute;right:.75vw;top:.65vw;border:1px solid var(--line2);background:var(--bg3);color:var(--mut);border-radius:7px;padding:.3vw .55vw;font:700 .7vw Pretendard,sans-serif;cursor:pointer;z-index:3}.copyBtn:hover{color:var(--lime);border-color:var(--lime)}
+#copyToast{position:absolute;z-index:100;right:3%;bottom:7%;background:var(--lime);color:#0b0b0d;border-radius:8px;padding:.65vw 1vw;font:800 .85vw Pretendard,sans-serif;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none}#copyToast.show{opacity:1;transform:none}
+.result-split{display:grid;grid-template-columns:1fr 1fr;gap:1.2vw;min-height:0}.result-card{background:var(--bg2);border:1px solid var(--line2);border-radius:14px;padding:1vw;min-height:0}.result-card h3{font-size:1.2vw;margin-bottom:.65vw;display:flex;justify-content:space-between}.result-card h3 span{color:var(--lime);font-size:.85vw}.result-card .visual{height:25vw;max-height:470px;background:#0a0b0d;border-radius:9px;overflow:hidden;display:flex;align-items:center;justify-content:center}.result-card img{width:100%;height:100%;object-fit:contain}
+.light .result-card .visual{background:#eceee8}
+.light ul.bul li b,.light .ccard .ct,.light .result-card h3,.light .title-badge,.light .part,.light .crumb,.light .crumb b,.light .chip,.light .chip b,.light .kvrow,.light .fbox .ft,.light .pnode .pt{color:var(--ink)!important}
+.light .ccard .cd,.light .pnode .pd,.light .fbox .fd,.light .shot .cap,.light #foot,.light .pipeStep{color:var(--mut)!important}
+.light .prompt .tag,.light .code .hl,.light .code .k,.light .tree .hl,.light .tree .dir,.light .kvrow .kname{color:#111310!important}
+.light .kind.step{color:#111310!important;background:#fff!important;border:1px solid #111310!important}
+.light .kind.intro,.light .kind.concept{color:#111310!important;background:#fff!important;border-color:#111310!important}
+.light .copyBtn{color:#111310;background:#fff;border-color:#777}
+.light .crumb .ic,.light .crumb .sep,.light .crumb .last{color:#111310!important}
+.light .note b,.light .shotslot .sh-ic{color:#111310!important}
+.light .tg .msg.bot code{color:#111310!important}
+.repo-shot{max-width:82%;justify-self:center}.repo-shot img{max-height:19vw;object-fit:contain;background:#0c0d10}
+#stage.light{--bg:#f3f4ef;--bg2:#ffffff;--bg3:#e9ebe5;--line:#d8dbd1;--line2:#c5c9bd;--ink:#151713;--mut:#676b61;--mut2:#92978c;--lime:#111310;--lime-dim:#2d3029;background:#f3f4ef}.light .glow{background:radial-gradient(60% 45% at 85% -10%,rgba(0,0,0,.07),transparent 60%)}.light .keyline{background:rgba(0,0,0,.035)!important;border-color:rgba(0,0,0,.24)!important}.light .pnode.hot,.light .ccard.lime,.light .fbox.hot{background:rgba(0,0,0,.035)!important;border-color:#111310!important}
+.light h1,.light h2,.light h3,.light .lead{color:var(--ink)}.light ul.bul li,.light .prompt p,.light .kvrow .kval{color:#30332d}.light .code,.light .tree{background:#eceee8;color:#33451c}.light .note,.light .prompt,.light .ccard,.light .pnode,.light .fbox,.light .kvrow,.light .result-card{box-shadow:none}.light .shot{background:#fff}.light .chip{background:#fff}.light #themeToggle{background:#fff}.light .tg{filter:none}
+#foot{position:absolute;bottom:2%;left:6%;right:6%;display:flex;justify-content:space-between;align-items:center;font-size:.9vw;color:var(--mut2)}
+#prog{position:absolute;bottom:0;left:0;height:4px;background:var(--lime);transition:width .35s}
+#foot .title{color:var(--mut)}
+kbd{font-family:ui-monospace;background:var(--bg3);border:1px solid var(--line2);border-radius:5px;padding:.15vw .5vw;font-size:.82vw;color:var(--mut)}
+.title-wrap{flex:1;display:flex;flex-direction:column;justify-content:center;gap:1.9vw}
+.title-badge{font-size:1.1vw;letter-spacing:.16em;text-transform:uppercase;color:var(--lime);font-weight:700}
+.title-meta{display:flex;gap:1vw;flex-wrap:wrap;margin-top:.4vw}
+.chip{font-size:1.05vw;padding:.6vw 1.15vw;border-radius:30px;background:var(--bg2);border:1px solid var(--line2);color:var(--mut)}
+.chip b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="glow"></div>
+  <button id="themeToggle" type="button">☀ Light</button><div id="slides"></div><div id="pipelineNav"></div><div id="copyToast">복사됨</div>
+  <div id="foot"><span class="title">부동산 뉴스 봇 · Claude Code 실습</span><span><kbd>←</kbd> <kbd>→</kbd> 방향키로 이동 · <span id="cnt"></span></span></div>
+  <div id="prog"></div>
+</div>
+<script>
+const IMG={};
+const S=[
+// 1 COVER
+`<div class="topbar"><span class="part"><span class="dot"></span>WORKSHOP GUIDE</span><span class="kind intro">INTRO</span></div>
+<div class="title-wrap"><span class="title-badge">Claude Code로 처음부터 끝까지</span><h1 class="head-font">매일 아침 7시,<br><span class="lm">부동산 뉴스</span>가 도착한다</h1><p class="lead">네이버 API·웹서치·크롤링으로 뉴스를 모아 중복을 걷어내고, 브리핑 웹페이지와 텔레그램 알림으로 매일 자동 발행하는 봇을 만듭니다. 내 PC는 꺼져 있어도 됩니다.</p><div class="title-meta"><span class="chip"><b>HTML 브리핑 리포트</b></span><span class="chip"><b>텔레그램 아침 발송</b></span><span class="chip"><b>관심물건 즉시 알림</b></span><span class="chip"><b>GitHub Actions 자동화</b></span></div></div>`,
+
+// 2 GOAL
+`<div class="topbar"><span class="part"><span class="dot"></span>개요</span><span class="kind intro">GOAL</span></div><h2 class="head-font">오늘 끝나면 <span class="lm">이걸 갖게 됩니다</span></h2><div class="body"><div class="note">직접 코드를 타이핑하지 않습니다. <b>Claude Code에게 무엇을 왜 원하는지 말하는 법</b>을 배우고, 사람만 할 수 있는 일(키 발급·봇 생성·Secrets 등록)만 손으로 합니다.</div><ul class="bul"><li><span class="mk">1</span><span><b>수집</b> — 네이버 뉴스·블로그 API, 웹서치, 브라우저 크롤링으로 복합 수집<span class="sub">한 채널이 죽어도 나머지로 성립하게 설계합니다</span></span></li><li><span class="mk">2</span><span><b>가공</b> — 중복제거·교차출처 병합·관련도 필터·중요도 스코어링 → SQLite 누적<span class="sub">같은 뉴스가 8곳에서 나와도 한 줄로 합칩니다</span></span></li><li><span class="mk">3</span><span><b>발행</b> — HTML 브리핑 + 텔레그램 다이제스트 + 관심물건 즉시 알림<span class="sub">매일 07:00 KST, 클라우드에서 자동 실행</span></span></li></ul></div>`,
+
+// 3 PIPELINE
+`<div class="topbar"><span class="part"><span class="dot"></span>전체 구조</span><span class="kind concept">PIPELINE</span></div><h2 class="head-font">파이프라인 <span class="lm">한 장</span>으로</h2><div class="body"><div class="note">이 네 칸이 오늘의 전부입니다. 앞으로 모든 슬라이드는 <b>지금 어느 칸을 만들고 있는지</b>를 하단 표시줄로 알려줍니다.</div><div class="pipe"><div class="pnode"><span class="pt">① 설정</span><span class="pd">config/*.json<br>관심사·소스·구독</span></div><div class="parrow">→</div><div class="pnode hot"><span class="pt">② 수집 3.5채널</span><span class="pd">네이버 뉴스·블로그<br>웹서치 · 크롤링</span></div><div class="parrow">→</div><div class="pnode"><span class="pt">③ 가공</span><span class="pd">중복제거·병합·스코어<br>→ SQLite 누적</span></div><div class="parrow">→</div><div class="pnode"><span class="pt">④ 발행</span><span class="pd">HTML 리포트<br>텔레그램 발송</span></div></div><div class="note">설계 원칙 하나만 기억하세요 — <b>설정은 파일로, 코드는 고정.</b> 관심사가 바뀌면 코드가 아니라 config/*.json만 고칩니다.</div></div>`,
+
+// 4 RESULT PREVIEW
+`<div class="topbar"><span class="part"><span class="dot"></span>최종 결과물</span><span class="kind intro">PREVIEW</span></div><h2 class="head-font">완성되면 <span class="lm">이렇게</span> 작동합니다</h2><div class="body"><div class="note">결과를 먼저 봅니다. 왼쪽은 <b>매일 갱신되는 웹 브리핑</b>, 오른쪽은 <b>아침에 도착하는 텔레그램</b>. 이 두 개가 오늘의 목적지입니다.</div><div class="result-split"><div class="result-card"><h3>WEB 브리핑 <span>reports/*.html</span></h3><div class="visual"><div class="shotslot"><span class="sh-ic">▤</span><b>캡처 삽입 위치</b>reports/news_briefing_YYYY-MM-DD.html<br>기준일 대형 헤더 · 카테고리별 요약 · sticky 네비</div></div></div><div class="result-card"><h3>텔레그램 다이제스트 <span>매일 07:00</span></h3><div class="visual"><div class="tg" style="width:100%"><div class="msg bot"><div class="nm">부동산뉴스봇</div>📌 <b>오늘의 부동산 브리핑</b><br>정책·규제 3 · 시장·시세 5 · 경매 2</div><div class="msg bot">⭐ <b>관심</b> — 내 관심구역 관련 신규 2건</div><div class="msg me">/now</div><div class="msg bot">지금 수집해서 보내드릴게요…</div></div></div></div></div></div>`,
+
+// 5 DEPENDENCY ORDER
+`<div class="topbar"><span class="part"><span class="dot"></span>개요</span><span class="kind concept">준비물 · 순서</span></div><h2 class="head-font">순서를 <span class="lm">지켜야</span> 합니다</h2><div class="body"><div class="note">뒤 단계가 앞 단계의 결과물을 필요로 합니다. 특히 <b>chat ID는 봇과 먼저 대화를 시작해야만</b> 얻을 수 있습니다 — 이 순서를 어기면 막힙니다.</div><div class="flow"><div class="fbox"><span class="ft">① 네이버 키</span><span class="fd">앱 등록 +<br><b>검색 API 추가</b></span></div><div class="farrow">→</div><div class="fbox"><span class="ft">② 봇 생성</span><span class="fd">BotFather<br>전용 토큰</span></div><div class="farrow">→</div><div class="fbox hot"><span class="ft">③ 봇과 대화</span><span class="fd">먼저 말을 걸어야<br>chat ID가 생김</span></div><div class="farrow">→</div><div class="fbox"><span class="ft">④ Secrets</span><span class="fd">GitHub에<br>4개 등록</span></div><div class="farrow">→</div><div class="fbox"><span class="ft">⑤ Actions</span><span class="fd">워크플로<br>+ 쓰기 권한</span></div></div><ul class="bul" style="margin-top:.3vw"><li><span class="mk">✓</span><span><b>필요한 계정</b> — 네이버(무료 API), 텔레그램, GitHub. <span class="sub">설치할 라이브러리는 없습니다. 파이프라인 전부 Python 표준 라이브러리라 pip install이 필요 없습니다.</span></span></li></ul></div>`,
+
+// 6 NAVER API (external UI)
+`<div class="topbar"><span class="part"><span class="dot"></span>수집</span><span class="kind step">외부 UI · 직접 클릭</span></div><h2 class="head-font">네이버 <span class="lm">검색 API</span> 키 발급</h2><div class="body"><div class="note">여기가 첫 관문이자 <b>가장 많이 막히는 곳</b>입니다. 앱만 등록하고 끝내면 안 됩니다 — <b>"검색" API를 명시적으로 추가</b>해야 합니다.</div><div class="cols wide-r"><ul class="bul"><li><span class="mk">1</span><span>developers.naver.com 로그인 → <b>Application → 애플리케이션 등록</b></span></li><li><span class="mk">2</span><span>앱 이름 입력 후 <b>사용 API에서 "검색" 선택</b><span class="sub">이 한 단계를 빠뜨리면 키는 발급되지만 401이 납니다</span></span></li><li><span class="mk">3</span><span>환경 추가 → <b>WEB 설정</b> → URL은 http://localhost 로 충분</span></li><li><span class="mk">4</span><span>등록 후 <b>Client ID / Client Secret</b> 복사<span class="sub">이 두 값은 비밀입니다. 화면 공유 중이면 가리세요</span></span></li></ul><div class="shot"><div class="shotslot"><span class="sh-ic">◧</span><b>캡처 삽입 위치</b>애플리케이션 등록 화면 —<br>"사용 API = 검색" 선택 지점에 라임 하이라이트<br><span style="opacity:.7">Client ID/Secret은 ●●●●●● 로 가릴 것</span></div><div class="cap">사용 API에서 "검색"을 반드시 추가한다</div></div></div></div>`,
+
+// 7 .env + 401 lesson
+`<div class="topbar"><span class="part"><span class="dot"></span>수집</span><span class="kind step">개념 + 실습</span></div><h2 class="head-font">키는 <span class="lm">.env</span>에, 코드엔 절대 안 넣습니다</h2><div class="body"><div class="note">키를 코드에 박으면 GitHub에 올리는 순간 공개됩니다. <b>.env에 두고 .gitignore로 막는 것</b>이 기본이고, 나중에 클라우드에선 같은 값을 Secrets로 넣습니다.</div><div class="cols"><div class="code"><span class="c"># .env — 프로젝트 루트에 만든다</span><br><span class="k">NAVER_CLIENT_ID</span>=<span class="s">●●●●●●</span><br><span class="k">NAVER_CLIENT_SECRET</span>=<span class="s">●●●●●●</span><br><br><span class="c"># .gitignore 에 .env 가 있는지 확인</span></div><div class="prompt"><div class="tag">▎막혔을 때 Claude Code에게</div><p>"네이버 검색 API가 <span class="hl">401</span>이 나. 응답 본문의 <span class="hl">errorCode</span>를 찍어서 원인을 알려줘."</p></div></div><ul class="bul"><li><span class="mk">★</span><span><b>401은 "키가 틀렸다"가 아닐 수 있다</b> — errorCode 024는 <b>이 키로 이 API를 쓸 권한이 없다</b>는 뜻.<span class="sub">실제로 겪은 일입니다. 키는 멀쩡했고, 앱에 "검색" API가 등록되지 않은 게 원인이었습니다. 응답 본문을 열어보지 않으면 키만 계속 다시 만들게 됩니다.</span></span></li></ul></div>`,
+
+// 8 harness creation prompt
+`<div class="topbar"><span class="part"><span class="dot"></span>수집</span><span class="kind step">개념 + 실습</span></div><h2 class="head-font">첫 프롬프트: <span class="lm">하네스</span>를 짜게 한다</h2><div class="body"><div class="note">스크립트 하나를 부탁하지 말고 <b>구조</b>를 부탁합니다. 누가 일하는지(에이전트)와 어떻게 하는지(스킬)를 나눠두면, 나중에 요구가 바뀔 때 코드가 아니라 문서만 고치면 됩니다.</div><div class="prompt"><div class="tag">▎Claude Code 프롬프트</div><p>"부동산 뉴스를 <span class="hl">네이버 오픈 API·웹서치·브라우저 크롤링</span>으로 복합 수집해서, 중복제거·교차출처 병합·스코어링을 거쳐 <span class="hl">SQLite에 누적</span>하고 <span class="hl">HTML 브리핑 리포트</span>를 만드는 하네스를 구성해줘. 에이전트와 스킬을 분리하고, <span class="hl">Python 표준 라이브러리만</span> 써줘. 관심사는 코드가 아니라 <span class="hl">config/*.json</span>으로 바꿀 수 있게 해줘."</p></div><ul class="bul"><li><span class="mk">1</span><span><b>왜 stdlib만?</b> — 설치 마찰이 0이 되고, 나중에 클라우드에서 pip install 없이 그대로 돕니다.</span></li><li><span class="mk">2</span><span><b>왜 config 분리?</b> — 관심 지역이 바뀔 때마다 Claude를 부르지 않아도 됩니다.</span></li></ul></div>`,
+
+// 9 first collect
+`<div class="topbar"><span class="part"><span class="dot"></span>수집</span><span class="kind step">개념 + 실습</span></div><h2 class="head-font">한 줄로 <span class="lm">첫 수집</span>을 돌린다</h2><div class="body"><div class="note">직접 명령어를 외우지 마세요. <b>무엇을 원하는지</b> 말하면 Claude가 스킬의 스크립트를 찾아 실행합니다. 결과가 몇 건인지, 어느 채널이 죽었는지 보고받는 게 핵심입니다.</div><div class="prompt"><div class="tag">▎Claude Code 프롬프트</div><p>"지금 뉴스 수집 한 번 돌리고, <span class="hl">채널별 수집 건수</span>와 <span class="hl">중복제거 후 최종 건수</span>를 알려줘. 실패한 채널이 있으면 원인도 같이."</p></div><ul class="bul"><li><span class="mk">★</span><span><b>채널 실패는 비치명적으로 설계한다</b> — 크롤이 막혀도 API·웹서치로 리포트가 나오고, 리포트에 "이 채널 누락"을 명시합니다.<span class="sub">전부 아니면 전무로 만들면, 사이트 하나 바뀔 때마다 아침 브리핑이 통째로 사라집니다.</span></span></li></ul></div>`,
+
+// 10 config
+`<div class="topbar"><span class="part"><span class="dot"></span>가공</span><span class="kind step">개념 + 실습</span></div><h2 class="head-font">내 관심사에 맞게 <span class="lm">config만</span> 고친다</h2><div class="body"><div class="note">여기서부터가 남의 봇이 아니라 <b>내 봇</b>이 되는 지점입니다. 코드는 그대로 두고 JSON 네 개만 바꿉니다.</div><div class="cols wide-l"><div class="tree"><span class="dir">config/</span><br>├ <span class="hl">keywords.json</span>   <span class="cm"># 카테고리별 검색 키워드</span><br>├ <span class="hl">sources.json</span>    <span class="cm"># 언론사 신뢰도 티어·크롤 대상</span><br>├ <span class="hl">telegram.json</span>   <span class="cm"># 발송 시각·구독 상태</span><br>└ <span class="hl">watchlist.json</span>  <span class="cm"># 관심 키워드·담당 물건</span></div><div class="prompt"><div class="tag">▎Claude Code 프롬프트</div><p>"<span class="hl">{내 관심 지역}</span> 뉴스를 중점적으로 보고 싶어. keywords.json에 카테고리를 추가하고, 신뢰할 언론사를 상위 티어로 올려줘."</p></div></div><ul class="bul"><li><span class="mk">1</span><span><b>8 카테고리</b> — 관심 · 정책·규제 · 시장·시세 · 경매·공매 · 재개발·재건축 · 분양·청약 · 도시계획 · 산업단지</span></li></ul></div>`,
+
+// 11 dedup / scoring
+`<div class="topbar"><span class="part"><span class="dot"></span>가공</span><span class="kind concept">원리</span></div><h2 class="head-font">같은 뉴스 8건을 <span class="lm">한 줄</span>로</h2><div class="body"><div class="note">수집은 쉽고 <b>정리가 어렵습니다.</b> 같은 기사가 여러 매체에 실리는데, 그걸 합치면서 "여러 곳이 동시에 다뤘다"는 신호는 오히려 <b>중요도 점수로 살립니다.</b></div><div class="cols wide-l"><ul class="bul"><li><span class="mk">1</span><span><b>중복제거</b> — 정규화 URL + 제목 유사도 0.86</span></li><li><span class="mk">2</span><span><b>교차출처 병합</b> — 여러 매체가 다룬 건 점수를 올린다</span></li><li><span class="mk">3</span><span><b>스코어</b> — 티어 40 + 교차출처 25 + 최신성 20 + 키워드 15</span></li></ul><div class="prompt"><div class="tag">▎느려졌을 때 프롬프트</div><p>"중복제거가 <span class="hl">5천 건</span>에서 너무 느려. 제목 <span class="hl">접두어로 버킷팅</span>해서 같은 버킷 안에서만 비교하도록 바꿔줘."</p></div></div><ul class="bul"><li><span class="mk">★</span><span><b>실제로 겪은 일</b> — 5,404건 병합이 <b>2분 타임아웃</b>. 모든 기존 항목과 비교하는 O(n²)이 원인이었고, 접두어 4자 버킷팅으로 <b>120초 → 0.75초</b>가 됐습니다.<span class="sub">근사 중복제거는 후보를 먼저 좁히면 정확도 손실 거의 없이 수백 배 빨라집니다.</span></span></li></ul></div>`,
+
+// 12 watchlist
+`<div class="topbar"><span class="part"><span class="dot"></span>가공</span><span class="kind step">개념 + 실습</span></div><h2 class="head-font">내 물건에 뉴스가 뜨면 <span class="lm">즉시</span> 알림</h2><div class="body"><div class="note">아침 브리핑과 <b>별개</b>로, 내가 지켜보는 물건·구역 뉴스가 잡히면 그 자리에서 텔레그램이 옵니다. 여기서 <b>이름을 얼마나 좁게 쓰느냐</b>가 성패를 가릅니다.</div><div class="prompt"><div class="tag">▎Claude Code 프롬프트</div><p>"watchlist.json에 관심 물건을 추가할게. region은 <span class="hl">{구체적인 단지명·정비구역명}</span>으로 넣고, 검색어가 <span class="hl">본문에 실제로 있는지</span> 확인하는 관련도 필터를 걸어줘."</p></div><ul class="bul"><li><span class="mk">★</span><span><b>실제로 겪은 일</b> — region에 <b>"광명"</b>이라고 시 이름만 넣었더니 광명시흥 등 무관한 뉴스까지 <b>119건</b>이 매칭됐습니다. 단지명·구역명 같은 <b>구체 고유명사</b>로 좁히고 관련도 필터를 걸자 <b>135건 → 정확한 13건</b>이 됐습니다.<span class="sub">알림은 많을수록 좋은 게 아닙니다. 안 읽게 되는 순간 없는 것과 같습니다.</span></span></li></ul></div>`,
+
+// 13 report
+`<div class="topbar"><span class="part"><span class="dot"></span>화면</span><span class="kind step">개념 + 실습</span></div><h2 class="head-font">읽히는 <span class="lm">브리핑</span>으로 만든다</h2><div class="body"><div class="note">DB에 쌓기만 하면 아무도 안 봅니다. <b>기준일 · 카테고리별 요약 · 상단 고정 네비</b> 세 가지만 있어도 "훑고 판단하는" 화면이 됩니다.</div><div class="cols wide-r"><div class="prompt"><div class="tag">▎Claude Code 프롬프트</div><p>"브리핑 리포트에 <span class="hl">기준일 대형 헤더</span>와 <span class="hl">카테고리별 요약</span>을 넣고, 스크롤해도 카테고리 네비가 <span class="hl">상단에 고정</span>되게 해줘."</p></div><div class="shot"><div class="shotslot"><span class="sh-ic">▤</span><b>캡처 삽입 위치</b>완성된 브리핑 리포트 상단 —<br>기준일 헤더 + 카테고리 네비가 보이게</div><div class="cap">reports/news_briefing_YYYY-MM-DD.html</div></div></div></div>`,
+
+// 14 telegram bot + 409
+`<div class="topbar"><span class="part"><span class="dot"></span>텔레그램</span><span class="kind step">외부 UI · 직접 클릭</span></div><h2 class="head-font">봇은 반드시 <span class="lm">전용으로 새로</span> 만듭니다</h2><div class="body"><div class="note">이미 쓰는 봇 토큰을 재사용하지 마세요. <b>봇 하나는 한 곳에서만 명령을 받을 수 있습니다.</b> 이걸 어기면 원인을 찾기 매우 어려운 오류를 만납니다.</div><div class="cols wide-r"><ul class="bul"><li><span class="mk">1</span><span>텔레그램에서 <b>@BotFather</b> 검색 → 대화 시작</span></li><li><span class="mk">2</span><span><b>/newbot</b> → 이름 입력 → 사용자명은 <b>_bot</b>으로 끝나야 함</span></li><li><span class="mk">3</span><span>발급된 <b>토큰 복사</b> <span class="sub">형태: 8988●●●●:AAF●●●●●●●●●●● — 이 값은 비밀번호와 같습니다</span></span></li><li><span class="mk">4</span><span><b>내가 만든 봇에게 아무 말이나 보내기</b><span class="sub">이걸 해야 다음 장의 chat ID가 생깁니다</span></span></li></ul><div class="shot"><div class="shotslot"><span class="sh-ic">◧</span><b>캡처 삽입 위치</b>BotFather /newbot 대화 —<br>토큰 부분은 ●●●●●● 로 가릴 것</div><div class="cap">/newbot 으로 전용 봇을 새로 만든다</div></div></div><ul class="bul"><li><span class="mk">★</span><span><b>실제로 겪은 일</b> — 봇이 계속 <b>409 Conflict</b>. 웹훅도 아니고 중복 프로세스도 아니었고, 원인은 <b>같은 토큰을 다른 곳에서 폴링 중</b>이었습니다. 발송(sendMessage)은 공유해도 무해하지만 <b>수신(getUpdates)은 봇당 한 곳만</b> 됩니다.</span></li></ul></div>`,
+
+// 15 chat id + send test
+`<div class="topbar"><span class="part"><span class="dot"></span>텔레그램</span><span class="kind step">개념 + 실습</span></div><h2 class="head-font">chat ID를 찾고 <span class="lm">발송</span>을 확인한다</h2><div class="body"><div class="note">chat ID는 <b>"이 봇이 누구에게 보낼지"</b>입니다. 앞 장에서 봇에게 말을 걸었어야 여기서 잡힙니다 — 안 잡히면 대화를 먼저 시작하세요.</div><div class="cols"><div class="prompt"><div class="tag">▎Claude Code 프롬프트</div><p>"텔레그램 봇 토큰을 .env에 넣었어. <span class="hl">내 chat ID를 찾아서</span> .env에 채우고, <span class="hl">테스트 메시지</span>를 한 번 보내줘."</p></div><div class="code"><span class="c"># .env 최종</span><br><span class="k">NAVER_CLIENT_ID</span>=<span class="s">●●●●●●</span><br><span class="k">NAVER_CLIENT_SECRET</span>=<span class="s">●●●●●●</span><br><span class="k">TELEGRAM_BOT_TOKEN</span>=<span class="s">●●●●●●</span><br><span class="k">TELEGRAM_CHAT_ID</span>=<span class="s">●●●●●●</span></div></div><ul class="bul"><li><span class="mk">1</span><span><b>여기까지가 로컬 완성</b> — 이제 내 PC에서 수동으로 돌리면 브리핑과 텔레그램이 나옵니다. 다음은 <b>PC를 꺼도 돌게</b> 만드는 일입니다.</span></li></ul></div>`,
+
+// 16 GitHub Secrets
+`<div class="topbar"><span class="part"><span class="dot"></span>GitHub</span><span class="kind step">외부 UI · 직접 클릭</span></div><h2 class="head-font">키를 <span class="lm">Secrets</span>로 옮긴다</h2><div class="body"><div class="note">.env는 GitHub에 올리지 않습니다(올리면 안 됩니다). 클라우드에서 쓸 키는 <b>Secrets</b>에 넣습니다 — 로그에도 찍히지 않습니다. 아래 이름 그대로 4개를 등록하세요.</div><div class="cols wide-l"><div class="kvtable"><div class="kvrow kvhead"><span>Secret 이름 (그대로 복사)</span><span>넣을 값</span></div><div class="kvrow"><span class="kname">NAVER_CLIENT_ID</span><span class="kval">네이버 검색 API Client ID</span></div><div class="kvrow"><span class="kname">NAVER_CLIENT_SECRET</span><span class="kval">네이버 검색 API Client Secret</span></div><div class="kvrow"><span class="kname">TELEGRAM_BOT_TOKEN</span><span class="kval">BotFather가 준 토큰</span></div><div class="kvrow"><span class="kname">TELEGRAM_CHAT_ID</span><span class="kval">받을 chat ID</span></div></div><div style="display:flex;flex-direction:column;gap:1vw"><div class="crumb"><span class="ic">▸</span><b>Settings</b><span class="sep">›</span><b>Secrets and variables</b><span class="sep">›</span><b>Actions</b><span class="sep">›</span><span class="last">New repository secret</span></div><div class="shot"><div class="shotslot"><span class="sh-ic">◧</span><b>캡처 삽입 위치</b>New repository secret 화면 —<br>Name 입력란에 라임 하이라이트<br><span style="opacity:.7">Secret 값은 절대 노출 금지</span></div><div class="cap">이름 4개를 정확히 같게 등록한다</div></div></div></div></div>`,
+
+// 17 Actions
+`<div class="topbar"><span class="part"><span class="dot"></span>자동화</span><span class="kind step">외부 UI · 직접 클릭</span></div><h2 class="head-font">내 PC를 꺼도 <span class="lm">매일 07:00</span></h2><div class="body"><div class="note">GitHub Actions가 매일 클라우드에서 수집→커밋→발송을 합니다. <b>결과를 저장소에 커밋해야</b> 다음 날이 어제 DB를 이어받아 추세가 쌓입니다 — 그래서 쓰기 권한이 필요합니다.</div><div class="cols wide-l"><div><div class="crumb" style="margin-bottom:1vw"><span class="ic">▸</span><b>Settings</b><span class="sep">›</span><b>Actions</b><span class="sep">›</span><b>General</b><span class="sep">›</span><span class="last">Read and write permissions</span></div><ul class="bul"><li><span class="mk">1</span><span><b>쓰기 권한 허용</b> — 위 경로에서 선택 후 저장</span></li><li><span class="mk">2</span><span><b>Actions 탭 → Run workflow</b>로 지금 1회 테스트<span class="sub">성공하면 텔레그램이 오고 새 커밋이 생깁니다</span></span></li><li><span class="mk">3</span><span><b>cron은 정시 보장이 아님</b> — 몇 분~십수 분 지연될 수 있습니다</span></li></ul></div><div class="prompt"><div class="tag">▎Claude Code 프롬프트</div><p>"매일 <span class="hl">07:00 KST</span>에 수집→리포트→커밋→텔레그램 발송하는 <span class="hl">GitHub Actions 워크플로</span>를 만들어줘. 키는 <span class="hl">Secrets</span>에서 읽고, 수동 실행 버튼(<span class="hl">workflow_dispatch</span>)도 넣어줘."</p></div></div><ul class="bul"><li><span class="mk">★</span><span><b>이중 발송 주의</b> — 클라우드가 아침 발송을 맡으면 <b>로컬 스케줄러는 꺼야</b> 합니다. 안 그러면 같은 브리핑이 두 번 옵니다.</span></li></ul></div>`,
+
+// 18 DESIGN
+`<div class="topbar"><span class="part"><span class="dot"></span>디자인</span><span class="kind concept">DESIGN</span></div><h2 class="head-font">디자인도 <span class="lm">프롬프트</span>로</h2><div class="body"><div class="note">기능이 다 된 <b>다음에</b> 디자인을 입힙니다. 먼저 예쁘게 만들면, 기능이 바뀔 때마다 디자인을 다시 하게 됩니다.</div><div class="prompt"><div class="tag">▎디자인 프롬프트</div><p>"브리핑 리포트를 <span class="hl">데이터 중심의 미니멀한 화면</span>으로 다시 디자인해줘. <span class="hl">강조색은 하나만</span> 쓰고, 넉넉한 여백과 얇은 구분선, 큰 제목으로 훑어읽기 좋게. <span class="hl">다크·라이트 둘 다</span> 되게 하고 색은 <span class="hl">토큰(CSS 변수)</span>으로 정의해줘."</p></div><ul class="bul"><li><span class="mk">1</span><span><b>강조색은 하나만</b> — 두 개 이상 쓰면 어디를 봐야 할지 사라집니다.</span></li><li><span class="mk">2</span><span><b>토큰으로 정의</b> — 색을 컴포넌트마다 박지 말고 변수로 두면 테마 전환이 공짜가 됩니다.</span></li><li><span class="mk">3</span><span><b>내 것으로 만들기</b> — 이 강의의 결과물을 그대로 쓰지 말고, <b>{내 지역}·{내 관심물건}</b>으로 config를 바꿔 오늘 안에 한 번 돌려보세요.</span></li></ul></div>`
+];
+const slidesEl=document.getElementById('slides');
+slidesEl.innerHTML=S.map((s,i)=>`<section class="slide">${s}</section>`).join('');
+let cur=0; const N=S.length; const secs=[...document.querySelectorAll('.slide')];
+// move each slide's main takeaway directly below its title
+secs.forEach(slide=>{const body=slide.querySelector('.body');if(!body)return;const note=[...body.children].find(el=>el.classList&&el.classList.contains('note'));const title=slide.querySelector('h2');if(note&&title){note.classList.add('keyline');title.insertAdjacentElement('afterend',note);}});
+// copy buttons for prompts, code and secret names
+function copyText(text){if(navigator.clipboard&&location.protocol==='https:'){navigator.clipboard.writeText(text);}else{const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();}const toast=document.getElementById('copyToast');toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),1000);}
+document.querySelectorAll('.prompt,.code').forEach(el=>{el.classList.add('copyable');const b=document.createElement('button');b.className='copyBtn';b.type='button';b.textContent='복사';b.onclick=e=>{e.stopPropagation();const target=el.querySelector('p')||el;copyText(target.innerText.replace(/^복사\s*/,''));};el.appendChild(b);});
+document.querySelectorAll('.kvrow:not(.kvhead)').forEach(row=>{row.classList.add('copyable');const b=document.createElement('button');b.className='copyBtn';b.type='button';b.textContent='이름 복사';b.onclick=e=>{e.stopPropagation();copyText(row.querySelector('.kname').innerText);};row.appendChild(b);});
+const pipelineStages=['개요','수집','가공','화면','텔레그램','GitHub','자동화','디자인'];
+const stageMap=[0,0,0,0,0, 1,1,1,1, 2,2,2, 3, 4,4, 5, 6, 7];
+const pn=document.getElementById('pipelineNav');pn.innerHTML=pipelineStages.map((x,i)=>`<span class="pipeStep" data-p="${i}"><i class="pDot"></i>${x}</span>`).join('');
+function show(n){cur=Math.max(0,Math.min(N-1,n));secs.forEach((s,i)=>s.classList.toggle('on',i===cur));document.getElementById('cnt').textContent=`${cur+1} / ${N}`;document.getElementById('prog').style.width=((cur+1)/N*100)+'%';document.querySelectorAll('.pipeStep').forEach((el,i)=>el.classList.toggle('active',i===stageMap[cur]));}
+const stage=document.getElementById('stage');const themeBtn=document.getElementById('themeToggle');function setTheme(light){stage.classList.toggle('light',light);document.body.style.background=light?'#e8eae4':'#000';themeBtn.textContent=light?'◐ Dark':'☀ Light';localStorage.setItem('deckTheme',light?'light':'dark');}themeBtn.onclick=()=>setTheme(!stage.classList.contains('light'));setTheme(localStorage.getItem('deckTheme')==='light');
+show(0);
+document.addEventListener('keydown',e=>{
+  if(['ArrowRight','ArrowDown',' ','PageDown'].includes(e.key)){e.preventDefault();show(cur+1);}
+  else if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){e.preventDefault();show(cur-1);}
+  else if(e.key==='Home')show(0); else if(e.key==='End')show(N-1);
+});
+</script>
+</body>
+</html>

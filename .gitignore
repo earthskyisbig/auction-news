@@ -7,3 +7,4 @@ _workspace_prev/
 reports/*.html
 __pycache__/
 *.pyc
+data/*.db.*
