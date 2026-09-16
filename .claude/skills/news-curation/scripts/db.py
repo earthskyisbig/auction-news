@@ -7,7 +7,7 @@ DB 경로 기본값: 프로젝트루트/data/news.db (환경변수 NEWS_DB로 ov
   articles         — 수집 기사(중복 병합 후 1행/스토리)
   collection_runs  — 수집 실행 이력
 """
-import os, sqlite3
+import gzip, json, os, shutil, sqlite3, sys
 
 
 def project_root():
@@ -23,9 +23,67 @@ def db_path():
     return os.environ.get("NEWS_DB") or os.path.join(project_root(), "data", "news.db")
 
 
+def gz_path():
+    return db_path() + ".gz"
+
+
+def inflate_if_needed():
+    """저장소에는 news.db.gz만 커밋된다(원본 SQLite가 GitHub 100MB 한도를 넘어 2026-09-10부터
+    푸시가 7일간 실패했었다). 작업용 news.db가 없거나 .gz보다 오래됐으면 .gz에서 풀어 쓴다.
+    이렇게 해야 git pull 뒤 예전 로컬 DB를 정본으로 착각하는 사고가 안 난다."""
+    p, g = db_path(), gz_path()
+    if not os.path.isfile(g):
+        return
+    if os.path.isfile(p) and os.path.getmtime(p) >= os.path.getmtime(g):
+        return
+    sys.stderr.write("INFO: news.db.gz가 더 최신 → 작업용 news.db 재생성\n")
+    with gzip.open(g, "rb") as src, open(p + ".tmp", "wb") as dst:
+        shutil.copyfileobj(src, dst)
+    for ext in ("-wal", "-shm"):
+        try:
+            os.remove(p + ext)
+        except FileNotFoundError:
+            pass
+    os.replace(p + ".tmp", p)
+
+
+def deflate():
+    """작업용 news.db → 커밋용 news.db.gz. WAL을 본 파일로 합친 뒤 압축한다."""
+    p, g = db_path(), gz_path()
+    con = sqlite3.connect(p)
+    con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    con.close()
+    with open(p, "rb") as src, gzip.open(g + ".tmp", "wb", compresslevel=9) as dst:
+        shutil.copyfileobj(src, dst)
+    os.replace(g + ".tmp", g)
+    return os.path.getsize(g)
+
+
+# 적재 후에도 계속 쓰는 raw 키. 나머지(네이버 원본 item 등)는 감사용이라 일주일이면 충분하다.
+RAW_KEEP = {"trusted", "official", "section", "press_id", "blog_id", "domain"}
+
+
+def slim_raw(con, older_than_days=7):
+    """오래된 행의 raw를 플래그만 남기고 비운다. raw가 DB의 절반을 차지해 100MB 한도를 넘겼다.
+    배지·relevance 판단에 쓰는 키는 남기므로 리포트 동작은 변하지 않는다."""
+    rows = con.execute(
+        "SELECT id, raw FROM articles WHERE pub_date < date('now', ?) AND length(raw) > 80",
+        (f"-{older_than_days} days",)).fetchall()
+    for r in rows:
+        try:
+            d = json.loads(r["raw"] or "{}")
+        except Exception:
+            d = {}
+        slim = {k: v for k, v in d.items() if k in RAW_KEEP}
+        con.execute("UPDATE articles SET raw=? WHERE id=?", (json.dumps(slim, ensure_ascii=False), r["id"]))
+    con.commit()
+    return len(rows)
+
+
 def connect():
     p = db_path()
     os.makedirs(os.path.dirname(p), exist_ok=True)
+    inflate_if_needed()
     con = sqlite3.connect(p)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA journal_mode=WAL")

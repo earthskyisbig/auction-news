@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """데일리 뉴스 빌드 엔트리포인트 (수집 → 적재 → 리포트). CI/로컬 공용.
 
+DB는 data/news.db.gz로 커밋되고 db.py가 필요 시 자동으로 풀어 쓴다(원본은 .gitignore).
 키는 환경변수(GitHub Secrets 또는 로컬 .env)에서 읽는다:
   NAVER_CLIENT_ID, NAVER_CLIENT_SECRET  (없으면 검색 채널 건너뜀. RSS 채널은 키 불필요)
 텔레그램 발송은 별도(send_digest.py) — 이 스크립트는 '빌드'만 담당.
@@ -44,6 +45,20 @@ def run(args, required=False):
         print(f"WARN(계속): {msg}", flush=True)
 
 
+def compact_and_pack():
+    """오래된 raw 슬림화 → VACUUM → news.db.gz 생성. 실측: 104MB → 60MB → 16.8MB."""
+    sys.path.insert(0, os.path.join(ROOT, CUR))
+    import db as D
+    con = D.connect()
+    n = D.slim_raw(con, older_than_days=7)
+    con.execute("VACUUM")
+    con.close()
+    size = D.deflate()
+    print(f"▶ DB 압축: raw 슬림 {n}행 → news.db.gz {size/1e6:.1f} MB", flush=True)
+    if size > 80e6:
+        print("WARN: news.db.gz가 80MB를 넘었다 — 100MB 한도 전에 보존 기간(retention) 정책이 필요하다", flush=True)
+
+
 def main():
     load_env()
     has_naver = bool(os.environ.get("NAVER_CLIENT_ID") and os.environ.get("NAVER_CLIENT_SECRET"))
@@ -76,6 +91,10 @@ def main():
     if inputs:
         run([f"{CUR}/ingest.py", "--inputs", *inputs, "--sources", "config/sources.json",
              "--watchlist", "config/watchlist.json", "--run-id", RUN_ID], required=True)
+
+    # 저장소에는 news.db.gz만 커밋한다. 원본 SQLite가 GitHub 100MB 한도를 넘어
+    # 2026-09-10부터 푸시가 7일간 실패했었다(빌드는 성공, 커밋·텔레그램만 죽음).
+    compact_and_pack()
 
     # 리포트 2종
     run([f"{REP}/build_report.py", "--days", "7", "--min-score", "45", "--relevant-only",

@@ -37,11 +37,17 @@ jobs:
       - name: 빌드 (수집 → 적재 → 리포트)
         run: python scripts/build.py
 
-      - name: 결과 커밋 (DB·리포트)
+      # DB는 gzip(news.db.gz)만 커밋한다 — 원본 SQLite가 GitHub 100MB 한도를 넘어
+      # 2026-09-10부터 7일간 푸시가 실패했고, 그 뒤 단계인 텔레그램까지 멈췄었다.
+      # 커밋이 실패해도 텔레그램은 나가야 하므로 continue-on-error로 두고 맨 끝에서 실패를 다시 올린다.
+      - name: 결과 커밋 (DB.gz·리포트)
+        id: commit
+        continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f data/news.db reports/ || true
+          git rm --cached -q data/news.db 2>/dev/null || true
+          git add -f data/news.db.gz reports/ || true
           if git diff --staged --quiet; then
             echo "변경 없음 — 커밋 생략"
           else
@@ -54,3 +60,9 @@ jobs:
 
       - name: 관심물건 알림 (있으면)
         run: python .claude/skills/news-telegram/scripts/watch_alert.py
+
+      - name: 커밋 실패 시 잡을 실패로 표시
+        if: steps.commit.outcome == 'failure'
+        run: |
+          echo "::error::결과 커밋/푸시 실패 — DB 누적이 끊긴다. 로그의 git 오류를 확인할 것"
+          exit 1

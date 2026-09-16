@@ -8,3 +8,4 @@ reports/*.html
 __pycache__/
 *.pyc
 data/*.db.*
+!data/news.db.gz

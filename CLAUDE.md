@@ -6,6 +6,8 @@
 
 **트리거:** 부동산 뉴스 수집/브리핑/리포트 관련 요청 시 `realestate-news-harness` 스킬을 사용하라. 후속(재실행·리포트만·특정 카테고리·업데이트)도 동일 스킬. 단일 기사 단순 질의는 직접 응답 가능.
 
+**DB 정본:** 원격 `data/news.db.gz`(GitHub Actions가 매일 커밋). 로컬 `data/news.db`는 `db.py`가 .gz에서 자동 생성하는 작업 사본이며 추적하지 않는다. 로컬 작업 전 `git pull`만 하면 된다.
+
 **환경:** 프로젝트 루트 `.env` — 네이버 `NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET`, 텔레그램 `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` (`.env.example` 참고). 네이버 키 없으면 API 채널 제외하고 웹서치+크롤로 동작.
 
 **카테고리(8):** policy 정책·규제·세제 · market 시장·시세 · auction 경매·공매 · redevelopment 재개발·재건축 · subscription 분양·청약 · urban_plan 도시계획·공공주택 · industrial 산업단지·신도시 · local 지역단지·호재(경매 호재용).
@@ -40,3 +42,4 @@
 | 2026-08-25 | 경기도 뉴스포털 무인증 RSS 3종 추가(주거정책 E004·교통 E007·보도자료) + 소스별 `max_age_days`·`topic_extra` 지원, 필터 0건과 수신 0건의 WARN 구분 | config/press.json, press_feeds.py | 사용자가 무인증 RSS 경로 발견(내 탐색은 인증키 필요 결론이었음 — 정정). 카테고리 피드 특이점: 날짜 태그 없음(기사번호 YYYYMMDDHHMM에서 추출), 본문 태그가 `deion`으로 잘림, 갱신 느림(최신 7월말). 교통 피드는 철도·GTX가 입지 호재라 `topic_extra`로 통과어 확장 |
 | 2026-08-25 | **네이버 부동산 섹션 채널 신설**(`naver_section` 파서, method=section) + fnnews·kmib·biz.chosun tier2 등재 + 기존 DB 1,628행 티어 소급 재스코어 | config/press.json, config/sources.json, press_feeds.py, ingest.py | 사용자 예시 기사 3건 진단: 수집은 됐으나 ①파이낸셜뉴스 tier 미등재로 44점(45 컷 1점 차 탈락) ②심층기사 제목이 검색어와 어긋나 relevance=0 탈락. 섹션 수집은 편집자가 부동산 섹션에 넣은 전량이라 검색어 의존이 없다 — raw.section으로 relevance 면제. 검증: 36건 수집·36건 45점 이상, 한남뉴타운 기사 44→51점 |
 | 2026-08-27 | 로컬 작업 스케줄러 `AuctionNews-MorningDigest` 삭제(GH Actions와 이중 발송 구조·로컬 DB 기준 발송 문제), 텔레그램 명령봇 재기동 + 시작프로그램 일원화(복사본 `AuctionNewsBot.vbs` 삭제 → 원본 `scripts/start_bot.vbs`를 가리키는 바로가기 `AuctionNews-TelegramBot.lnk`만 유지) | Windows 작업 스케줄러·시작프로그램, telegram_bot.py(상주) | 7/14 Actions 이관 후 로컬 크론이 남아 있었음. 마지막 실행 결과 1(실패)로 중복 발송은 미발생이었으나 구조상 위험. 발송은 Actions 전담, 명령 수신(getUpdates)만 로컬 봇 |
+| 2026-09-16 | 🚨 **DB가 GitHub 100MB 한도를 넘어 9/10~9/16 Actions 7일 연속 실패** (빌드는 성공, 커밋·푸시에서 죽고 그 뒤 텔레그램 단계 미실행 → 다이제스트 6일 미발송). 조치: ① 7일 지난 행의 `raw`를 배지 플래그(trusted·official·section·press_id·blog_id·domain)만 남기고 슬림 ② **저장소에는 `data/news.db.gz`만 커밋**, `db.py.connect()`가 .gz가 더 최신이면 자동으로 풀어 작업용 news.db 생성 ③ 워크플로 커밋 단계 `continue-on-error` + 텔레그램 이후 실패 재표시. 실측 104MB → 60MB → **16.8MB**. 정본 규칙은 그대로(원격 .gz가 정본) | db.py, build.py(compact_and_pack), daily-news.yml, .gitignore | `raw` 컬럼(수집 원본 JSON)이 DB의 절반. 하루 ~4천행 증가라 gz만으로도 수년 여유. 80MB 넘으면 build.py가 WARN — 그때 보존기간 정책 추가 |

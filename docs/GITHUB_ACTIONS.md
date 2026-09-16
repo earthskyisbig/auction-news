@@ -2,7 +2,7 @@
 
 `.github/workflows/daily-news.yml` 이 매일 **07:00 KST**(=22:00 UTC 전날)에:
 1. 뉴스+블로그 수집 → 중복제거·스코어링·관련도·관심물건 매칭 (`scripts/build.py`)
-2. 결과(`data/news.db`, `reports/*.html`)를 저장소에 **커밋**
+2. 결과(`data/news.db.gz`, `reports/*.html`)를 저장소에 **커밋** — SQLite 원본은 100MB 한도를 넘어 gzip으로만 커밋한다(2026-09-16부터)
 3. **텔레그램 다이제스트** 발송 (`send_digest.py`)
 4. **관심물건 알림** 발송 (`watch_alert.py`)
 
