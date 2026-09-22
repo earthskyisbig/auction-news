@@ -164,6 +164,24 @@
       "tier": 2,
       "fallback_category": "market",
       "filter": false
+    },
+    {
+      "id": "arunews",
+      "name": "한국주택경제신문",
+      "type": "rss",
+      "url": "https://www.arunews.com/rss/allArticle.xml",
+      "tier": 2,
+      "fallback_category": "redevelopment",
+      "filter": false
+    },
+    {
+      "id": "rcnews",
+      "name": "주거환경신문",
+      "type": "rss",
+      "url": "https://www.rcnews.co.kr/rss/allArticle.xml",
+      "tier": 2,
+      "fallback_category": "redevelopment",
+      "filter": false
     }
   ]
 }
