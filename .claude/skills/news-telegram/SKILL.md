@@ -59,3 +59,24 @@ python .claude/skills/news-telegram/scripts/send_digest.py --collect  # 수집 �
 ## 협업
 
 curator가 적재한 `data/news.db`를 읽는다. 오케스트레이터가 수집 파이프라인 완료 후 발송을 트리거하거나, 봇이 독립적으로 아침 스케줄에 발송한다.
+
+## 사업 단계 이벤트 알림 (`scripts/event_alert.py`)
+
+관심물건 알림이 "내 물건 지역에 뉴스가 떴다"라면, 이쪽은 "정비사업이 특정 단계에 도달했다"를 알린다. 규칙은 `config/watchlist.json`의 `event_alerts`에 있고 코드는 손대지 않는다.
+
+```bash
+python .claude/skills/news-telegram/scripts/event_alert.py --dry-run   # 대상만 확인
+python .claude/skills/news-telegram/scripts/event_alert.py             # 새 이벤트 발송
+python .claude/skills/news-telegram/scripts/event_alert.py --replay    # 이미 알린 것까지 출력(점검)
+```
+
+| 키 | 뜻 |
+|---|---|
+| `patterns` | 하나라도 제목·요약에 있으면 대상 (부분일치) |
+| `exclude` | 하나라도 있으면 제외 (공모·후보지 선정·설명회 안내 등) |
+| `min_score` / `days` | 노이즈 임계 / 조회 기간 |
+| `enabled` | false면 그 규칙만 끔 |
+
+**사업 단위로 한 번만 울린다.** 확정 하나에 언론 6곳이 쓰고 서울시가 `[기획완료]`·`[서북권]`·`[기록영상]`으로 3건을 더 올린다 — 기사 단위로 알리면 한 사건에 9번 울린다. 제목에서 **동(洞)**을 뽑아 묶고(구역명으로 묶으면 '홍제동 9-81'·'개미마을'·'문화마을'로 쪼개짐), 표시명은 그 묶음에서 가장 구체적인 이름을 쓴다.
+
+**발송 상태는 DB에 남는다** → 워크플로에서 **발송이 커밋보다 먼저** 와야 한다. 커밋이 먼저면 `notified` 표시가 `.gz`에 안 담겨 다음날 같은 알림이 또 나간다(2026-09-23 이전 실제 버그).

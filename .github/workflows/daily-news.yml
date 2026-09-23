@@ -37,9 +37,30 @@ jobs:
       - name: 빌드 (수집 → 적재 → 리포트)
         run: python scripts/build.py
 
+      # 발송이 커밋보다 먼저다. 알림 스크립트가 "발송됨" 표시를 DB에 쓰는데, 커밋이 먼저면
+      # 그 표시가 .gz에 안 담겨 다음날 같은 알림이 또 나간다(9/23까지 실제로 그랬다).
+      - name: 텔레그램 요약 발송
+        run: python .claude/skills/news-telegram/scripts/send_digest.py
+
+      - name: 관심물건 알림 (있으면)
+        run: python .claude/skills/news-telegram/scripts/watch_alert.py
+
+      # 신통기획 확정 등 사업 단계 이벤트. 사업당 1회만 울린다(config/watchlist.json의 event_alerts)
+      - name: 사업 단계 이벤트 알림 (있으면)
+        run: python .claude/skills/news-telegram/scripts/event_alert.py
+
+      - name: DB 재패킹 (알림 발송 상태 반영)
+        run: |
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, '.claude/skills/news-curation/scripts')
+          import db as D
+          print(f"news.db.gz {D.deflate()/1e6:.1f} MB")
+          PY
+
       # DB는 gzip(news.db.gz)만 커밋한다 — 원본 SQLite가 GitHub 100MB 한도를 넘어
-      # 2026-09-10부터 7일간 푸시가 실패했고, 그 뒤 단계인 텔레그램까지 멈췄었다.
-      # 커밋이 실패해도 텔레그램은 나가야 하므로 continue-on-error로 두고 맨 끝에서 실패를 다시 올린다.
+      # 2026-09-10부터 7일간 푸시가 실패했었다. 커밋 실패가 잡을 빨간불로 남도록
+      # continue-on-error로 두고 맨 끝에서 실패를 다시 올린다.
       - name: 결과 커밋 (DB.gz·리포트)
         id: commit
         continue-on-error: true
@@ -54,12 +75,6 @@ jobs:
             git commit -m "chore: 데일리 뉴스 $(date +%Y-%m-%d)"
             git push
           fi
-
-      - name: 텔레그램 요약 발송
-        run: python .claude/skills/news-telegram/scripts/send_digest.py
-
-      - name: 관심물건 알림 (있으면)
-        run: python .claude/skills/news-telegram/scripts/watch_alert.py
 
       - name: 커밋 실패 시 잡을 실패로 표시
         if: steps.commit.outcome == 'failure'
