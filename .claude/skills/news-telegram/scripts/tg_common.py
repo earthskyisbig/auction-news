@@ -18,6 +18,7 @@ CATS = [
 CAT_LABEL = {c: l for c, l, _ in CATS}
 CAT_EMOJI = {c: e for c, _, e in CATS}
 KST = timezone(timedelta(hours=9))
+MAX_PER_SOURCE = 2   # 다이제스트 한 카테고리에서 같은 출처 최대 노출 건수
 
 
 def project_root():
@@ -104,11 +105,23 @@ def _blocks(cfg):
     for c, label, emoji in CATS:
         if not cfg.get("categories", {}).get(c, True):
             continue
-        rows = con.execute(
+        # 한 출처가 섹션을 독점하지 않도록 넉넉히 뽑아 출처당 2건으로 제한한다.
+        # 서울 도시계획포털처럼 같은 사업을 [기획완료]·[서북권]·[기록영상]로 나눠 올리는 피드가
+        # 있어서, 제한이 없으면 한 사업이 top_n을 다 먹고 나머지 뉴스가 통째로 사라진다.
+        cand = con.execute(
             "SELECT title,url,naver_url,source,score,corroboration FROM articles "
             f"WHERE category=? AND (pub_date>=? OR pub_date='') AND score>=?{rel_sql} "
             "ORDER BY score DESC, pub_date DESC LIMIT ?",
-            (c, since, min_score, top_n)).fetchall()
+            (c, since, min_score, top_n * 4)).fetchall()
+        rows, per_src = [], {}
+        for r in cand:
+            s = r["source"] or ""
+            if per_src.get(s, 0) >= MAX_PER_SOURCE:
+                continue
+            per_src[s] = per_src.get(s, 0) + 1
+            rows.append(r)
+            if len(rows) >= top_n:
+                break
         if not rows:
             continue
         cnt = con.execute(

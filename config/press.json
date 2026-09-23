@@ -182,6 +182,16 @@
       "tier": 2,
       "fallback_category": "redevelopment",
       "filter": false
+    },
+    {
+      "id": "seoul_citybuild",
+      "name": "서울 도시계획포털(신통기획·모아타운)",
+      "type": "rss",
+      "url": "https://news.seoul.go.kr/citybuild/feed",
+      "tier": 1,
+      "fallback_category": "redevelopment",
+      "filter": false,
+      "max_age_days": 30
     }
   ]
 }
