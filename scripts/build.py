@@ -99,9 +99,11 @@ def main():
     # 리포트 2종
     run([f"{REP}/build_report.py", "--days", "7", "--min-score", "45", "--relevant-only",
          "--sources", "config/sources.json", "--out", f"reports/news_briefing_{TODAY}.html"])
-    # 아카이브는 전수 보존이 목적 → 블로그 섹션 없이 카테고리별로 전부 싣는다
-    run([f"{REP}/build_report.py", "--days", "3650", "--min-score", "0", "--no-blog-section",
-         "--out", f"reports/news_archive_{TODAY}.html"])
+    # 아카이브는 월 단위 파일(매일 덮어씀) — 전기간 1파일은 2026-10-13 101MB로 GitHub 100MB 한도를 넘어
+    # 푸시가 막혔다. 전수 보존은 news.db.gz 가 정본이고, 아카이브는 그 달의 열람용이다.
+    MONTH = TODAY[:7]
+    run([f"{REP}/build_report.py", "--since", f"{MONTH}-01", "--min-score", "0", "--no-blog-section",
+         "--out", f"reports/news_archive_{MONTH}.html"])
     print(f"✅ 빌드 완료: {TODAY}", flush=True)
 
 
